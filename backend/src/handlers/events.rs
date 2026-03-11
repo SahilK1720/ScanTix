@@ -1,8 +1,9 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Multipart},
     Extension, Json,
 };
 use uuid::Uuid;
+use std::fs;
 
 use crate::error::AppError;
 use crate::models::event::{CreateEvent, Event, EventStats, UpdateEvent};
@@ -14,7 +15,7 @@ pub async fn list_events(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Event>>, AppError> {
     let events = sqlx::query_as::<_, Event>(
-        "SELECT * FROM events WHERE status != 'cancelled' ORDER BY event_date ASC"
+        "SELECT * FROM events WHERE status != 'cancelled' AND event_date > CURRENT_TIMESTAMP ORDER BY event_date ASC"
     )
     .fetch_all(&state.db)
     .await?;
@@ -109,8 +110,8 @@ pub async fn create_event(
     let event = sqlx::query_as::<_, Event>(
         r#"INSERT INTO events (title, description, location, venue_id, organizer_id, event_date,
                                ticket_price, vip_price, max_tickets, status,
-                               seat_map_enabled, seat_rows, seat_columns)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'published', $10, $11, $12)
+                               seat_map_enabled, seat_rows, seat_columns, seat_layout, image_urls)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'published', $10, $11, $12, $13, $14)
            RETURNING *"#,
     )
     .bind(&input.title)
@@ -125,6 +126,8 @@ pub async fn create_event(
     .bind(seat_map_enabled)
     .bind(input.seat_rows)
     .bind(input.seat_columns)
+    .bind(input.seat_layout.unwrap_or_else(|| "grid".to_string()))
+    .bind(input.image_urls.unwrap_or_default())
     .fetch_one(&state.db)
     .await?;
 
@@ -161,6 +164,8 @@ pub async fn update_event(
             seat_map_enabled = COALESCE($10, seat_map_enabled),
             seat_rows = COALESCE($11, seat_rows),
             seat_columns = COALESCE($12, seat_columns),
+            seat_layout = COALESCE($13, seat_layout),
+            image_urls = COALESCE($14, image_urls),
             updated_at = NOW()
            WHERE id = $9 RETURNING *"#
     )
@@ -176,6 +181,8 @@ pub async fn update_event(
     .bind(input.seat_map_enabled)
     .bind(input.seat_rows)
     .bind(input.seat_columns)
+    .bind(input.seat_layout)
+    .bind(input.image_urls)
     .fetch_one(&state.db)
     .await?;
 
@@ -204,4 +211,64 @@ pub async fn delete_event(
         .await?;
 
     Ok(Json(serde_json::json!({ "message": "Event cancelled successfully" })))
+}
+
+/// POST /api/events/:id/images — upload images for an event
+pub async fn upload_event_images(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    mut multipart: Multipart,
+) -> Result<Json<Event>, AppError> {
+    
+    // Check event ownership
+    let existing = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Event not found".to_string()))?;
+
+    if existing.organizer_id != claims.sub && claims.role != "admin" {
+        return Err(AppError::Forbidden("Not authorized to modify this event".to_string()));
+    }
+
+    let mut new_urls = Vec::new();
+    let mut current_urls = existing.image_urls.clone();
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
+        if current_urls.len() + new_urls.len() >= 5 {
+            break; // Stop accepting files if max 5 is reached
+        }
+        
+        let file_name = if let Some(name) = field.file_name() {
+            name.to_string()
+        } else {
+            continue;
+        };
+
+        if !file_name.is_empty() {
+             let ext = std::path::Path::new(&file_name).extension().and_then(|e| e.to_str()).unwrap_or("png");
+             let final_name = format!("{}.{}", Uuid::new_v4(), ext);
+             let full_path = format!("uploads/{}", final_name);
+             
+             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
+             
+             fs::write(&full_path, data).map_err(|e| AppError::InternalError(e.to_string()))?;
+             
+             // Construct URL
+             new_urls.push(format!("/uploads/{}", final_name));
+        }
+    }
+
+    current_urls.extend(new_urls);
+
+    let event = sqlx::query_as::<_, Event>(
+        "UPDATE events SET image_urls = $1, updated_at = NOW() WHERE id = $2 RETURNING *"
+    )
+    .bind(current_urls)
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(event))
 }

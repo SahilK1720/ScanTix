@@ -84,9 +84,9 @@ pub async fn generate_event_seats(
         .seat_columns
         .ok_or_else(|| AppError::BadRequest("seat_columns not configured".to_string()))?;
 
-    if rows <= 0 || rows > 26 {
+    if rows <= 0 || rows > 500 {
         return Err(AppError::BadRequest(
-            "seat_rows must be between 1 and 26".to_string(),
+            "seat_rows must be between 1 and 500".to_string(),
         ));
     }
     if cols <= 0 || cols > 100 {

@@ -10,6 +10,7 @@ export interface Ticket {
     seat_id: string | null;
     user_id: string;
     qr_code_data: string;
+    ticket_type: 'standard' | 'vip';
     status: string;
     scanned_at: string | null;
     created_at: string;
@@ -18,11 +19,16 @@ export interface Ticket {
 export interface TicketWithQr {
     ticket: Ticket;
     qr_image_base64: string;
+    event_title: string;
+    event_image: string | null;
+    event_date: string;
+    seat_label: string | null;
 }
 
 export interface PurchaseRequest {
     event_id: string;
     quantity: number;
+    ticket_type?: 'standard' | 'vip';
     seat_ids?: string[];
 }
 

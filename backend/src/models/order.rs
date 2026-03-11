@@ -11,6 +11,7 @@ pub struct Order {
     pub event_id: Uuid,
     pub total_amount: Decimal,
     pub quantity: i32,
+    pub ticket_type: String,
     pub status: String,
     pub created_at: DateTime<Utc>,
 }

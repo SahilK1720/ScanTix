@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { interval, Subscription, switchMap, startWith } from 'rxjs';
@@ -32,7 +32,7 @@ import { EventService, EventStats } from '../../../core/services/event.service';
           </div>
           <div class="stat-card glass-card">
             <div class="stat-label">Revenue</div>
-            <div class="stat-value" style="color:var(--success)">&#36;{{ stats.revenue }}</div>
+            <div class="stat-value" style="color:var(--success)">&#8377;{{ stats.revenue }}</div>
           </div>
           <div class="stat-card glass-card">
             <div class="stat-label">Remaining</div>
@@ -88,15 +88,15 @@ import { EventService, EventStats } from '../../../core/services/event.service';
             <div style="display:flex;flex-direction:column;gap:16px">
               <div style="display:flex;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--border-glass)">
                 <span style="color:var(--text-secondary)">Gross Revenue</span>
-                <span style="font-size:1.5rem;font-weight:700;color:var(--success)">&#36;{{ stats.revenue }}</span>
+                <span style="font-size:1.5rem;font-weight:700;color:var(--success)">&#8377;{{ stats.revenue }}</span>
               </div>
               <div style="display:flex;justify-content:space-between">
                 <span style="color:var(--text-secondary)">Avg. per Ticket</span>
-                <span style="font-weight:600">&#36;{{ avgPerTicket(stats) }}</span>
+                <span style="font-weight:600">&#8377;{{ avgPerTicket(stats) }}</span>
               </div>
               <div style="display:flex;justify-content:space-between">
                 <span style="color:var(--text-secondary)">Potential (100%)</span>
-                <span style="font-weight:600;color:var(--text-muted)">&#36;{{ potentialRevenue(stats) }}</span>
+                <span style="font-weight:600;color:var(--text-muted)">&#8377;{{ potentialRevenue(stats) }}</span>
               </div>
             </div>
           </div>
@@ -115,7 +115,7 @@ import { EventService, EventStats } from '../../../core/services/event.service';
     .breakdown-row { display:flex; align-items:center; gap:12px; margin-bottom:14px; font-size:0.88rem; }
     .breakdown-bar { flex:1; height:8px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden; }
     .bd-fill { height:100%; border-radius:4px; transition:width 1s ease; }
-    .bd-sold { background:linear-gradient(90deg,#7c3aed,#3b82f6); }
+    .bd-sold { background:linear-gradient(90deg,#eab308,#facc15); }
     .bd-rem { background:rgba(255,255,255,0.1); }
   `]
 })
@@ -123,7 +123,11 @@ export class SalesDashboardComponent implements OnInit, OnDestroy {
   stats: EventStats | null = null;
   private sub?: Subscription;
 
-  constructor(private route: ActivatedRoute, private eventService: EventService) { }
+  constructor(
+    private route: ActivatedRoute,
+    private eventService: EventService,
+    private cdr: ChangeDetectorRef
+  ) { }
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -131,8 +135,14 @@ export class SalesDashboardComponent implements OnInit, OnDestroy {
       startWith(0),
       switchMap(() => this.eventService.getEventStats(id))
     ).subscribe({
-      next: s => this.stats = s,
-      error: () => { }
+      next: s => {
+        this.stats = s;
+        this.cdr.detectChanges();
+      },
+      error: e => {
+        console.error('Failed to load stats', e);
+        this.cdr.detectChanges();
+      }
     });
   }
 

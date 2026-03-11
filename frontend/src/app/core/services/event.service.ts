@@ -19,6 +19,8 @@ export interface ScanEvent {
     seat_map_enabled: boolean;
     seat_rows: number | null;
     seat_columns: number | null;
+    seat_layout: 'grid' | 'stadium';
+    image_urls: string[];
     created_at: string;
     updated_at: string;
 }
@@ -35,6 +37,8 @@ export interface CreateEventPayload {
     seat_map_enabled?: boolean;
     seat_rows?: number;
     seat_columns?: number;
+    seat_layout?: 'grid' | 'stadium';
+    image_urls?: string[];
 }
 
 export interface UpdateEventPayload {
@@ -46,6 +50,8 @@ export interface UpdateEventPayload {
     vip_price?: number;
     max_tickets?: number;
     status?: string;
+    seat_layout?: 'grid' | 'stadium';
+    image_urls?: string[];
 }
 
 export interface EventStats {
@@ -88,5 +94,11 @@ export class EventService {
 
     deleteEvent(id: string): Observable<any> {
         return this.http.delete(`${environment.apiUrl}/events/${id}`);
+    }
+
+    uploadImages(id: string, files: File[]): Observable<ScanEvent> {
+        const formData = new FormData();
+        files.forEach(f => formData.append('images', f));
+        return this.http.post<ScanEvent>(`${environment.apiUrl}/events/${id}/images`, formData);
     }
 }

@@ -9,6 +9,7 @@ mod utils;
 
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 use tracing_subscriber::EnvFilter;
 
 /// Shared application state accessible by all handlers via State extractor.
@@ -41,6 +42,10 @@ async fn main() {
     // Run migrations
     db::run_migrations(&pool).await;
     tracing::info!("✅ Migrations applied");
+
+    // Ensure uploads directory exists
+    std::fs::create_dir_all("uploads").unwrap_or_default();
+    tracing::info!("✅ Uploads directory ready");
 
     // Initialize Redis (optional — graceful fallback)
     let redis_pool = match redis::Client::open(config.redis_url.as_str()) {
@@ -77,7 +82,9 @@ async fn main() {
     let bg_db = state.db.clone();
 
     // Build router
-    let app = routes::create_router(state).layer(cors);
+    let app = routes::create_router(state)
+        .nest_service("/uploads", ServeDir::new("uploads"))
+        .layer(cors);
 
     // Start server
     let addr: SocketAddr = format!("{}:{}", config.server_host, config.server_port)

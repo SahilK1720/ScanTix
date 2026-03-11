@@ -11,6 +11,7 @@ pub struct Ticket {
     pub seat_id: Option<Uuid>,
     pub user_id: Uuid,
     pub qr_code_data: String,
+    pub ticket_type: String,
     pub status: String,
     pub scanned_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -20,6 +21,7 @@ pub struct Ticket {
 pub struct PurchaseRequest {
     pub event_id: Uuid,
     pub quantity: i32,
+    pub ticket_type: Option<String>,
     pub seat_ids: Option<Vec<Uuid>>,
 }
 
@@ -41,4 +43,8 @@ pub struct ValidateResponse {
 pub struct TicketWithQr {
     pub ticket: Ticket,
     pub qr_image_base64: String,
+    pub event_title: String,
+    pub event_image: Option<String>,
+    pub event_date: DateTime<Utc>,
+    pub seat_label: Option<String>,
 }

@@ -88,7 +88,7 @@ import { AuthService } from '../../../core/services/auth.service';
       font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
       letter-spacing: 0.5px; padding: 1px 6px; border-radius: 4px;
     }
-    .role-organizer { background: rgba(124,58,237,0.2); color: #a78bfa; }
+    .role-organizer { background: rgba(234,179,8,0.2); color: #facc15; }
     .role-admin { background: rgba(239,68,68,0.2); color: #f87171; }
     .role-attendee { background: rgba(16,185,129,0.2); color: #34d399; }
     @media (max-width: 768px) {

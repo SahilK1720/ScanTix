@@ -22,6 +22,10 @@ pub async fn run_migrations(pool: &PgPool) {
         include_str!("../migrations/009_create_event_seats.sql"),
         include_str!("../migrations/010_alter_tickets_fk.sql"),
         include_str!("../migrations/011_create_event_staff.sql"),
+        include_str!("../migrations/012_add_image_url_to_events.sql"),
+        include_str!("../migrations/013_add_image_urls_array.sql"),
+        include_str!("../migrations/014_add_seat_layout.sql"),
+        include_str!("../migrations/015_add_ticket_type.sql"),
     ];
 
     for (i, migration) in migrations.iter().enumerate() {

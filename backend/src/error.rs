@@ -14,6 +14,7 @@ pub enum AppError {
     Conflict(String),
     TooManyRequests(String),
     Internal(String),
+    InternalError(String),
     Database(sqlx::Error),
 }
 
@@ -27,6 +28,7 @@ impl std::fmt::Display for AppError {
             AppError::Conflict(msg) => write!(f, "Conflict: {}", msg),
             AppError::TooManyRequests(msg) => write!(f, "Too Many Requests: {}", msg),
             AppError::Internal(msg) => write!(f, "Internal Error: {}", msg),
+            AppError::InternalError(msg) => write!(f, "Internal Error: {}", msg),
             AppError::Database(e) => write!(f, "Database Error: {}", e),
         }
     }
@@ -42,6 +44,7 @@ impl IntoResponse for AppError {
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+            AppError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             AppError::Database(e) => {
                 tracing::error!("Database error: {:?}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Database error".to_string())
