@@ -40,7 +40,7 @@ import { AuthService } from '../../../core/services/auth.service';
           </div>
           <div class="stat-card glass-card">
             <div class="stat-label">Total Revenue</div>
-            <div class="stat-value" style="color:var(--success)">&#36;{{ totalRevenue.toFixed(2) }}</div>
+            <div class="stat-value" style="color:var(--success)">&#8377;{{ totalRevenue.toFixed(2) }}</div>
           </div>
           <div class="stat-card glass-card">
             <div class="stat-label">Published</div>
@@ -55,7 +55,6 @@ import { AuthService } from '../../../core/services/auth.service';
                 <div style="flex:1;min-width:240px">
                   <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
                     <h3 style="font-size:1.1rem">{{ event.title }}</h3>
-                    <span class="badge" [class]="getStatusClass(event.status)">{{ event.status }}</span>
                   </div>
                   @if (event.location) {
                     <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px">📍 {{ event.location }}</p>
@@ -72,7 +71,7 @@ import { AuthService } from '../../../core/services/auth.service';
                   </div>
                   <div style="text-align:center">
                     <div style="font-size:1.4rem;font-weight:700;font-family:'Outfit',sans-serif;color:var(--success)">
-                      &#36;{{ getRevenue(event) }}
+                      &#8377;{{ getRevenue(event) }}
                     </div>
                     <div style="font-size:0.75rem;color:var(--text-muted)">REVENUE</div>
                   </div>
@@ -99,7 +98,7 @@ import { AuthService } from '../../../core/services/auth.service';
     .occ-bar { height:5px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; }
     .occ-fill { height:100%; background:var(--accent-gradient); border-radius:3px; transition:width 0.6s ease; }
     .event-row { transition:all 0.2s ease; }
-    .event-row:hover { border-color:rgba(124,58,237,0.25); }
+    .event-row:hover { border-color:rgba(234,179,8,0.25); }
   `]
 })
 export class MyEventsComponent implements OnInit {
@@ -114,7 +113,12 @@ export class MyEventsComponent implements OnInit {
 
   ngOnInit() {
     this.eventService.getMyEvents().subscribe({
-      next: e => { this.events = e; this.loading = false; this.cdr.detectChanges(); },
+      next: e => {
+        const now = new Date();
+        this.events = e.filter(event => new Date(event.event_date) > now);
+        this.loading = false;
+        this.cdr.detectChanges();
+      },
       error: () => { this.loading = false; this.cdr.detectChanges(); }
     });
   }

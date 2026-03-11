@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { EventService, ScanEvent } from '../../../core/services/event.service';
 import { TicketService } from '../../../core/services/ticket.service';
@@ -8,6 +8,8 @@ import { AuthService } from '../../../core/services/auth.service';
 import { SeatMapComponent } from '../../../shared/seat-map/seat-map.component';
 import { EventSeat } from '../../../core/services/seat.service';
 import { StaffService } from '../../../core/services/staff.service';
+import { environment } from '../../../../environments/environment';
+import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-event-detail',
@@ -22,6 +24,23 @@ import { StaffService } from '../../../core/services/staff.service';
           ← Back to Events
         </a>
 
+        @if (event.image_urls && event.image_urls.length > 0) {
+          <!-- Carousel or gallery view for multiple images -->
+          <div style="margin-top:8px; display:flex; gap:16px; overflow-x:auto; padding-bottom:16px; scroll-snap-type: x mandatory">
+            @for (img of event.image_urls; track img; let i = $index) {
+              <div class="event-banner animate-fadeIn" 
+                   [style]="getSafeStyle(img)"
+                   style="min-width:100%; height:450px; background-size:cover; background-position:center; border-radius:16px; border:1px solid rgba(255,255,255,0.05); scroll-snap-align: center">
+              </div>
+            }
+          </div>
+          @if (event.image_urls.length > 1) {
+            <p style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:-8px; margin-bottom:16px">
+              ← Swipe to see more ({{ event.image_urls.length }} photos) →
+            </p>
+          }
+        }
+
         <div class="glass-card" style="padding:40px;margin-top:16px">
           <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:24px;flex-wrap:wrap;gap:16px">
             <div>
@@ -33,7 +52,7 @@ import { StaffService } from '../../../core/services/staff.service';
             </div>
             <div class="price-tag">
               <div class="price-label">Starting at</div>
-              <div class="price-value">&#36;{{ event.ticket_price }}</div>
+              <div class="price-value">&#8377;{{ event.ticket_price }}</div>
             </div>
           </div>
 
@@ -72,7 +91,7 @@ import { StaffService } from '../../../core/services/staff.service';
                 <span>⭐</span>
                 <div>
                   <div class="detail-label">VIP Price</div>
-                  <div class="detail-value">&#36;{{ event.vip_price }}</div>
+                  <div class="detail-value">&#8377;{{ event.vip_price }}</div>
                 </div>
               </div>
             }
@@ -89,7 +108,7 @@ import { StaffService } from '../../../core/services/staff.service';
 
           <!-- ── Purchase / Seat Section ──────────────────────────────────────── -->
           @if (event.status !== 'cancelled' && auth.isAuthenticated) {
-            <div class="glass-card" style="padding:24px;margin-top:32px;background:rgba(124,58,237,0.05);border-color:rgba(124,58,237,0.2)">
+            <div class="glass-card" style="padding:24px;margin-top:32px;background:rgba(234,179,8,0.05);border-color:rgba(234,179,8,0.2)">
 
               @if (event.seat_map_enabled) {
                 <!-- SEAT MAP MODE -->
@@ -104,6 +123,7 @@ import { StaffService } from '../../../core/services/staff.service';
                 <app-seat-map
                   [eventId]="event.id"
                   [currentUserId]="auth.currentUser?.id ?? null"
+                  [layoutType]="event.seat_layout"
                   (selectionChanged)="onSeatSelectionChanged($event)"
                 ></app-seat-map>
 
@@ -112,7 +132,7 @@ import { StaffService } from '../../../core/services/staff.service';
                     <div>
                       <p style="color:var(--text-secondary);font-size:.9rem;margin:0">
                         Total: <strong style="color:var(--text-primary);font-size:1.2rem">
-                          &#36;{{ (+event.ticket_price * selectedSeats.length).toFixed(2) }}
+                          &#8377;{{ calculateTotal().toFixed(2) }}
                         </strong>
                         ({{ selectedSeats.length }} seat{{ selectedSeats.length > 1 ? 's' : '' }})
                       </p>
@@ -132,28 +152,29 @@ import { StaffService } from '../../../core/services/staff.service';
                 @if (purchaseSuccess) { <div class="alert alert-success">{{ purchaseSuccess }}</div> }
                 @if (purchaseError) { <div class="alert alert-danger">{{ purchaseError }}</div> }
 
-                <div style="display:flex;gap:16px;align-items:end;flex-wrap:wrap">
-                  <div class="form-group" style="margin-bottom:0">
+                <div style="display:flex;gap:12px;margin-bottom:16px">
+                  <div class="form-group" style="flex:1">
                     <label>Quantity</label>
-                    <select class="form-control" [(ngModel)]="quantity" style="width:100px">
-                      @for (n of ticketQtyOptions; track n) {
-                        <option [value]="n">{{ n }}</option>
+                    <select class="form-control" [(ngModel)]="quantity">
+                      @for (n of [1,2,3,4,5,6,7,8,9,10]; track n) {
+                        <option [ngValue]="n">{{ n }} Ticket{{ n > 1 ? 's' : '' }}</option>
                       }
                     </select>
                   </div>
-                  <div>
-                    <p style="color:var(--text-secondary);font-size:.9rem">
-                      Total: <strong style="color:var(--text-primary);font-size:1.2rem">
-                        &#36;{{ (+event.ticket_price * quantity).toFixed(2)}}
-                      </strong>
-                    </p>
-                  </div>
+
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding:12px;background:rgba(234,179,8,0.1);border-radius:8px">
+                  <span style="color:var(--text-secondary)">Total Amount</span>
+                  <span style="font-size:1.4rem;font-weight:700;color:var(--accent-primary)">
+                    {{ calculateTotal() | currency:'INR' }}
+                  </span>
+                </div>
                   <button class="btn btn-primary" (click)="purchase()" [disabled]="purchasing">
                     @if (purchasing) {
                       <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
                     } @else { Buy Now }
                   </button>
-                </div>
               }
 
             </div>
@@ -206,6 +227,7 @@ export class EventDetailComponent implements OnInit, OnDestroy {
 
   // Standard mode
   quantity = 1;
+  ticketType: 'standard' | 'vip' = 'standard';
   ticketQtyOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   // Seat mode
@@ -223,11 +245,13 @@ export class EventDetailComponent implements OnInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private eventService: EventService,
     private ticketService: TicketService,
     public auth: AuthService,
     private staffService: StaffService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private sanitizer: DomSanitizer
   ) { }
 
   ngOnInit() {
@@ -266,10 +290,17 @@ export class EventDetailComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (tickets) => {
         this.purchasing = false;
-        this.purchaseSuccess = `🎉 Successfully booked ${tickets.length} seat(s)! View your QR tickets in My Tickets.`;
+        this.purchaseSuccess = `🎉 Successfully booked ${tickets.length} seat(s)! Redirecting to your tickets...`;
         if (this.event) this.event.tickets_sold += tickets.length;
         this.selectedSeats = [];
         this.cdr.detectChanges();
+        setTimeout(() => {
+          if (tickets.length > 0) {
+            this.router.navigate(['/my-tickets'], { queryParams: { id: tickets[0].id } });
+          } else {
+             this.router.navigate(['/my-tickets']);
+          }
+        }, 1500);
       },
       error: (err) => {
         this.purchasing = false;
@@ -301,6 +332,22 @@ export class EventDetailComponent implements OnInit, OnDestroy {
     });
   }
 
+  calculateTotal(): number {
+    if (!this.event) return 0;
+    
+    // Seat-map mode (Dynamic based on row)
+    if (this.event.seat_map_enabled && this.selectedSeats.length > 0) {
+      return this.selectedSeats.reduce((sum, seat) => {
+        const isVip = seat.row_label === 'A' || seat.row_label === 'B';
+        const price = isVip ? (this.event?.vip_price || this.event!.ticket_price) : this.event!.ticket_price;
+        return sum + Number(price);
+      }, 0);
+    }
+
+    // Standard mode (Always standard as requested)
+    return this.quantity * Number(this.event.ticket_price);
+  }
+
   purchase() {
     if (!this.event) return;
     this.purchasing = true;
@@ -308,12 +355,23 @@ export class EventDetailComponent implements OnInit, OnDestroy {
     this.purchaseSuccess = '';
     this.cdr.detectChanges();
 
-    this.ticketService.purchaseTickets({ event_id: this.event.id, quantity: this.quantity }).subscribe({
+    this.ticketService.purchaseTickets({ 
+      event_id: this.event.id, 
+      quantity: Number(this.quantity),
+      ticket_type: this.ticketType
+    }).subscribe({
       next: (tickets) => {
         this.purchasing = false;
-        this.purchaseSuccess = `Successfully purchased ${tickets.length} ticket(s)! View them in My Tickets.`;
+        this.purchaseSuccess = `Successfully purchased ${tickets.length} ticket(s)! Redirecting to your tickets...`;
         if (this.event) this.event.tickets_sold += tickets.length;
         this.cdr.detectChanges();
+        setTimeout(() => {
+          if (tickets.length > 0) {
+            this.router.navigate(['/my-tickets'], { queryParams: { id: tickets[0].id } });
+          } else {
+             this.router.navigate(['/my-tickets']);
+          }
+        }, 1500);
       },
       error: (err) => {
         this.purchasing = false;
@@ -325,5 +383,15 @@ export class EventDetailComponent implements OnInit, OnDestroy {
 
   getStatusClass(status: string): string {
     return status === 'published' ? 'badge-success' : status === 'draft' ? 'badge-warning' : status === 'cancelled' ? 'badge-danger' : 'badge-info';
+  }
+
+  getImageUrl(path: string): string {
+    if (path.startsWith('http')) return path;
+    const baseUrl = environment.apiUrl.replace('/api', '');
+    return `${baseUrl}${path}`;
+  }
+
+  getSafeStyle(path: string): SafeStyle {
+    return this.sanitizer.bypassSecurityTrustStyle(`background-image: url('${this.getImageUrl(path)}')`);
   }
 }

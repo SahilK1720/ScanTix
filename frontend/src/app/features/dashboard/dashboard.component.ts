@@ -36,7 +36,7 @@ import { AuthService } from '../../core/services/auth.service';
           </div>
           <div class="stat-card glass-card">
             <div class="stat-label">Total Revenue</div>
-            <div class="stat-value" style="color:var(--success)">&#36;{{ totalRevenue.toFixed(2) }}</div>
+            <div class="stat-value" style="color:var(--success)">&#8377;{{ totalRevenue.toFixed(2) }}</div>
           </div>
           <div class="stat-card glass-card">
             <div class="stat-label">Active Events</div>
@@ -57,7 +57,6 @@ import { AuthService } from '../../core/services/auth.service';
               <div class="glass-card" style="padding:24px">
                 <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
                   <h3 style="font-size:1.1rem">{{ event.title }}</h3>
-                  <span class="badge" [class]="getStatusClass(event.status)">{{ event.status }}</span>
                 </div>
                 @if (event.location) {
                   <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px">📍 {{ event.location }}</p>
@@ -145,7 +144,7 @@ import { AuthService } from '../../core/services/auth.service';
   styles: [`
     .prog-bar { height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; }
     .prog-fill { height:100%; background:var(--accent-gradient); border-radius:3px; transition:width 0.6s ease; }
-    .ticket-item:hover { transform:translateY(-3px); box-shadow:0 8px 20px rgba(124,58,237,0.15); }
+    .ticket-item:hover { transform:translateY(-3px); box-shadow:0 8px 20px rgba(234,179,8,0.15); }
   `]
 })
 export class DashboardComponent implements OnInit {

@@ -1,15 +1,17 @@
-import { Component, ChangeDetectorRef } from '@angular/core';
+import { Component, ChangeDetectorRef, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, Subject, debounceTime, distinctUntilChanged, switchMap, tap, of } from 'rxjs';
 import { EventService, CreateEventPayload } from '../../../core/services/event.service';
 import { SeatService } from '../../../core/services/seat.service';
+import { LocationService, LocationSuggestion } from '../../../core/services/location.service';
+import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropper/image-cropper.component';
 
 @Component({
   selector: 'app-event-create',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ImageCropperComponent],
   template: `
     <div class="page-container animate-fadeIn">
       <div class="page-header">
@@ -20,46 +22,103 @@ import { SeatService } from '../../../core/services/seat.service';
       <div class="glass-card" style="padding:40px;max-width:760px">
         @if (error) { <div class="alert alert-danger">{{ error }}</div> }
 
-        <form (ngSubmit)="onSubmit()">
+        <form #eventForm="ngForm" (ngSubmit)="onSubmit()">
           <div class="form-group">
             <label>Event Title *</label>
             <input class="form-control" [(ngModel)]="title" name="title" placeholder="My Amazing Event" required>
           </div>
 
           <div class="form-group">
-            <label>Description</label>
+            <label>Description *</label>
             <textarea class="form-control" [(ngModel)]="description" name="description"
-                      placeholder="Tell people what your event is about..." rows="4"></textarea>
+                      placeholder="Tell people what your event is about..." rows="4" required></textarea>
+          </div>
+
+          <div class="form-group" style="position:relative">
+            <label>📍 Location *</label>
+            <input class="form-control" [(ngModel)]="location" name="location"
+                   placeholder="e.g. Madison Square Garden, New York" required
+                   (ngModelChange)="onLocationInput($event)" autocomplete="off">
+            
+            @if (isSearchingLocation) {
+              <div class="location-spinner"></div>
+            }
+
+            @if (locationSuggestions.length > 0) {
+              <div class="location-suggestions-dropdown glass-card">
+                @for (sugg of locationSuggestions; track sugg.displayName) {
+                  <div class="suggestion-item" (click)="selectLocation(sugg)">
+                    <div class="suggestion-name">{{ sugg.city || sugg.displayName }}</div>
+                    <div class="suggestion-details">{{ sugg.displayName }}</div>
+                  </div>
+                }
+              </div>
+            }
           </div>
 
           <div class="form-group">
-            <label>📍 Location</label>
-            <input class="form-control" [(ngModel)]="location" name="location"
-                   placeholder="e.g. Madison Square Garden, New York">
+            <label>📸 Event Photos (Up to 5) *</label>
+            <div class="custom-file-input">
+              <button type="button" class="btn-file-select" (click)="fileInput.click()">Choose Files</button>
+              <span class="file-name-label">
+                {{ selectedFiles.length === 0 ? 'No file chosen' : selectedFiles.length + ' file(s) chosen' }}
+              </span>
+              <input #fileInput type="file" style="display:none" multiple accept="image/*" (change)="onFilesSelected($event)">
+            </div>
+            <small class="form-hint">Select up to 5 images from your device. The first image will be your cover photo.</small>
           </div>
+
+          @if (selectedFiles.length > 0) {
+            <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+              @for (file of selectedFiles; track file.name; let i = $index) {
+                <div style="position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)">
+                  <img [src]="filePreviewUrls[i]" style="width:100%;height:100%;object-fit:cover">
+                  <button type="button" (click)="removeFile(i)" 
+                          style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);border:none;color:white;border-radius:50%;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px">✕</button>
+                  @if (i === 0) {
+                    <span style="position:absolute;bottom:0;left:0;right:0;background:rgba(234,179,8,0.8);color:#000;font-weight:600;font-size:10px;text-align:center;padding:2px 0">COVER</span>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Custom Canvas Image Cropper Modal -->
+          @if (imageFile) {
+            <app-image-cropper
+              [imageFile]="imageFile"
+              [aspectRatio]="16/9"
+              (imageCropped)="onImageCropped($event)"
+              (cropCanceled)="cancelCrop()">
+            </app-image-cropper>
+          }
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div class="form-group">
               <label>Event Date & Time *</label>
-              <input type="datetime-local" class="form-control" [(ngModel)]="eventDate" name="event_date" required>
+              <input type="datetime-local" class="form-control" [(ngModel)]="eventDate" name="event_date" 
+                     [min]="minDateTime" required>
             </div>
             <div class="form-group">
               <label>Max Tickets *</label>
-              <input type="number" class="form-control" [(ngModel)]="maxTickets" name="max_tickets"
-                     placeholder="500" min="1" [disabled]="seatMapEnabled" required>
+              <input type="text" class="form-control" [(ngModel)]="maxTickets" name="max_tickets"
+                     placeholder="500" [disabled]="seatMapEnabled" 
+                     (input)="enforceNumeric($event)" required>
             </div>
           </div>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div class="form-group">
-              <label>Ticket Price (USD) *</label>
-              <input type="number" class="form-control" step="0.01" [(ngModel)]="ticketPrice"
-                     name="ticket_price" placeholder="25.00" min="0" required>
+              <label>Ticket Price (₹) *</label>
+              <input type="text" class="form-control" [(ngModel)]="ticketPrice"
+                     name="ticket_price" placeholder="25.00" 
+                     (input)="enforceDecimal($event)" required>
             </div>
             <div class="form-group">
-              <label>VIP Price (USD)</label>
-              <input type="number" class="form-control" step="0.01" [(ngModel)]="vipPrice"
-                     name="vip_price" placeholder="75.00" min="0">
+              <label>VIP Price (₹) *</label>
+              <input type="text" class="form-control" [(ngModel)]="vipPrice"
+                     name="vip_price" placeholder="75.00" 
+                     (input)="enforceDecimal($event)" required>
             </div>
           </div>
 
@@ -81,14 +140,25 @@ import { SeatService } from '../../../core/services/seat.service';
 
             @if (seatMapEnabled) {
               <div class="seat-config" @fadeIn>
+                <div class="form-group" style="margin-bottom:16px">
+                  <label>Layout Style</label>
+                  <div style="display:flex;gap:16px;margin-top:8px">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                      <input type="radio" name="seat_layout" [(ngModel)]="seatLayout" value="grid"> Grid View
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                      <input type="radio" name="seat_layout" [(ngModel)]="seatLayout" value="stadium"> Stadium View
+                    </label>
+                  </div>
+                </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
                   <div class="form-group" style="margin-bottom:0">
                     <label>Rows (A–Z) *</label>
                     <input type="number" class="form-control"
                            [(ngModel)]="seatRows" name="seat_rows"
-                           placeholder="10" min="1" max="26"
+                           placeholder="10" min="1" max="500"
                            (ngModelChange)="recalcTotal()">
-                    <small class="form-hint">Max 26 rows (A–Z)</small>
+                    <small class="form-hint">Max 500 rows (A–Z, AA, AB...)</small>
                   </div>
                   <div class="form-group" style="margin-bottom:0">
                     <label>Seats per Row *</label>
@@ -135,11 +205,18 @@ import { SeatService } from '../../../core/services/seat.service';
           <!-- ──────────────────────────────────────────────────────────── -->
 
           <div style="display:flex;gap:12px;margin-top:24px">
-            <button type="submit" class="btn btn-primary btn-lg" [disabled]="loading">
+            <button type="submit" class="btn btn-primary btn-lg" 
+                    [disabled]="loading || !eventForm.valid || (seatMapEnabled && (!seatRows || !seatColumns || seatRows > 500 || seatColumns > 100)) || selectedFiles.length === 0">
               @if (loading) {
                 <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
               } @else { 🚀 Create Event }
             </button>
+            @if (!loading && !eventForm.valid && eventForm.touched) {
+               <div style="color:#ef4444;font-size:0.85rem;margin-top:8px">Please fill all required fields correctly.</div>
+            }
+            @if (seatMapEnabled && seatRows && seatRows > 500) {
+              <div style="color:#ef4444;font-size:0.85rem;margin-top:8px">Maximum 500 rows allowed.</div>
+            }
             <button type="button" class="btn btn-secondary btn-lg" (click)="cancel()">Cancel</button>
           </div>
         </form>
@@ -147,33 +224,41 @@ import { SeatService } from '../../../core/services/seat.service';
     </div>
   `,
   styles: [`
+    button:disabled {
+      background: #374151 !important;
+      color: #9ca3af !important;
+      cursor: not-allowed !important;
+      box-shadow: none !important;
+      opacity: 0.8;
+      border-color: #4b5563 !important;
+    }
     .seat-toggle-card {
-      border:1px solid rgba(124,58,237,.3); border-radius:12px;
+      border:1px solid rgba(234,179,8,.3); border-radius:12px;
       overflow:hidden; margin-top:8px;
     }
     .seat-toggle-header {
-      display:flex; justify-content:space-between; align-items:center;
-      padding:16px 20px; cursor:pointer;
-      background:rgba(124,58,237,.05); transition:background .2s;
+      padding:16px 20px; display:flex; justify-content:space-between; align-items:center;
+      background:rgba(234,179,8,.05); transition:background .2s;
+      cursor:pointer; user-select:none;
     }
-    .seat-toggle-header:hover { background:rgba(124,58,237,.1); }
-    .seat-toggle-title { font-weight:700; font-size:1rem; margin-bottom:4px; }
-    .seat-toggle-sub { font-size:.8rem; color:var(--text-muted); }
+    .seat-toggle-header:hover { background:rgba(234,179,8,.1); }
+    .seat-toggle-title { font-weight:600; font-size:1.1rem; color:var(--text-primary); margin-bottom:4px; }
+    .seat-toggle-sub { font-size:.85rem; color:var(--text-muted); }
 
     .toggle-switch { position:relative; display:inline-block; width:44px; height:24px; }
     .toggle-switch input { opacity:0; width:0; height:0; }
     .slider {
-      position:absolute; inset:0; background:#374151; border-radius:24px;
-      cursor:pointer; transition:.3s;
+      position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
+      background-color:rgba(255,255,255,.1); transition:.4s; border-radius:24px;
     }
     .slider::before {
-      content:''; position:absolute; height:18px; width:18px;
-      left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.3s;
+      position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px;
+      background-color:white; transition:.4s; border-radius:50%;
     }
-    input:checked + .slider { background:var(--accent-color,#7c3aed); }
+    input:checked + .slider { background:var(--accent-primary,#eab308); }
     input:checked + .slider::before { transform:translateX(20px); }
 
-    .seat-config { padding:20px; border-top:1px solid rgba(124,58,237,.2); }
+    .seat-config { padding:20px; border-top:1px solid rgba(234,179,8,.2); }
     .form-hint { font-size:.75rem; color:var(--text-muted); margin-top:4px; display:block; }
 
     .seat-preview {
@@ -192,9 +277,81 @@ import { SeatService } from '../../../core/services/seat.service';
     }
     .mini-ellipsis { font-size:.7rem; color:var(--text-muted); margin-left:2px; }
     .mini-more { font-size:.7rem; color:var(--text-muted); margin-top:4px; padding-left:23px; }
+
+    .custom-file-input {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-md);
+      transition: border-color 0.2s;
+    }
+    .custom-file-input:hover { border-color: rgba(234, 179, 8, 0.4); }
+    .btn-file-select {
+      background: #374151;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-file-select:hover { background: #4b5563; }
+    .file-name-label { font-size: 0.9rem; color: var(--text-secondary); }
+
+    .location-suggestions-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      margin-top: 4px;
+      padding: 8px 0;
+      max-height: 240px;
+      overflow-y: auto;
+      background: #18181b;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .suggestion-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .suggestion-item:hover {
+      background: rgba(255,255,255,0.05);
+    }
+    .suggestion-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+    }
+    .suggestion-details {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .location-spinner {
+      position: absolute;
+      right: 12px;
+      top: 42px;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
   `]
 })
-export class EventCreateComponent {
+export class EventCreateComponent implements OnInit {
   title = '';
   description = '';
   location = '';
@@ -207,6 +364,7 @@ export class EventCreateComponent {
 
   // Seat map
   seatMapEnabled = false;
+  seatLayout: 'grid' | 'stadium' = 'grid';
   seatRows: number | null = null;
   seatColumns: number | null = null;
   totalSeats = 0;
@@ -214,16 +372,168 @@ export class EventCreateComponent {
   previewRows: string[] = [];
   previewCols: number[] = [];
 
+  // File Uploads & Cropping
+  selectedFiles: File[] = [];
+  filePreviewUrls: string[] = [];
+  
+  // Multiple files cropping queue
+  pendingFilesToCrop: File[] = [];
+  imageFile: File | null = null;
+  croppedImage: string = '';
+  currentProcessingFileName: string = '';
+
+  // Date constraints
+  minDateTime = '';
+
   constructor(
     private eventService: EventService,
     private seatService: SeatService,
+    private locationService: LocationService,
     private router: Router,
     private cdr: ChangeDetectorRef
   ) { }
 
+  // Location suggestions
+  private locationSearch$ = new Subject<string>();
+  locationSuggestions: LocationSuggestion[] = [];
+  isSearchingLocation = false;
+
+  ngOnInit() {
+    // Set minDateTime to now (in current timezone format YYYY-MM-DDThh:mm)
+    const now = new Date();
+    // Adjust for local timezone offset
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    this.minDateTime = now.toISOString().slice(0, 16);
+
+    // Setup location search
+    this.locationSearch$.pipe(
+      debounceTime(400),
+      distinctUntilChanged(),
+      switchMap(query => {
+        if (query.length < 2) {
+          this.locationSuggestions = [];
+          return of([]);
+        }
+        this.isSearchingLocation = true;
+        this.cdr.detectChanges();
+        return this.locationService.searchCities(query).pipe(
+          finalize(() => {
+            this.isSearchingLocation = false;
+            this.cdr.detectChanges();
+          })
+        );
+      })
+    ).subscribe(suggestions => {
+      this.locationSuggestions = suggestions;
+      this.cdr.detectChanges();
+    });
+  }
+
+  enforceNumeric(event: Event) {
+    const input = event.target as HTMLInputElement;
+    input.value = input.value.replace(/[^0-9]/g, '');
+    this.maxTickets = input.value ? parseInt(input.value, 10) : null;
+  }
+
+  enforceDecimal(event: Event) {
+    const input = event.target as HTMLInputElement;
+    // Allow digits and a single optional decimal point
+    let val = input.value.replace(/[^0-9.]/g, '');
+
+    // Ensure only one decimal point exists
+    const parts = val.split('.');
+    if (parts.length > 2) {
+      val = parts[0] + '.' + parts.slice(1).join('');
+    }
+
+    input.value = val;
+
+    if (input.name === 'ticket_price') {
+      this.ticketPrice = val ? parseFloat(val) : null;
+    } else if (input.name === 'vip_price') {
+      this.vipPrice = val ? parseFloat(val) : null;
+    }
+  }
+
+  onLocationInput(query: string) {
+    this.locationSearch$.next(query);
+  }
+
+  selectLocation(suggestion: LocationSuggestion) {
+    this.location = suggestion.displayName;
+    this.locationSuggestions = [];
+    this.locationSearch$.next('');
+    this.cdr.detectChanges();
+  }
+
   toggleSeatMap() {
     this.seatMapEnabled = !this.seatMapEnabled;
     this.onSeatMapToggle();
+  }
+
+  onFilesSelected(event: any) {
+    const files: FileList = event.target.files;
+    if (!files || files.length === 0) return;
+
+    // We allow multi-select, but we will crop them one by one.
+    const newFiles = Array.from(files);
+    const availableSlots = 5 - this.selectedFiles.length;
+    
+    if (newFiles.length > availableSlots) {
+      this.error = 'You can only upload a maximum of 5 images.';
+      // Take only what fits
+      this.pendingFilesToCrop = newFiles.slice(0, availableSlots);
+    } else {
+      this.error = '';
+      this.pendingFilesToCrop = newFiles;
+    }
+
+    if (this.pendingFilesToCrop.length > 0) {
+      this.processNextFileForCropping();
+    }
+
+    // Reset file input so same file can be selected again if removed
+    event.target.value = '';
+  }
+
+  processNextFileForCropping() {
+    if (this.pendingFilesToCrop.length === 0) {
+      this.imageFile = null;
+      return;
+    }
+
+    const fileToCrop = this.pendingFilesToCrop.shift()!;
+    this.currentProcessingFileName = fileToCrop.name;
+    
+    // Pass the raw File object directly to ngx-image-cropper
+    this.imageFile = fileToCrop;
+  }
+
+  onImageCropped(event: CroppedEvent) {
+    // Determine the original extension to keep it consistent
+    const ext = this.currentProcessingFileName.split('.').pop() || 'jpg';
+    const baseName = this.currentProcessingFileName.substring(0, this.currentProcessingFileName.lastIndexOf('.'));
+    const newFilename = `${baseName}_cropped.${ext}`;
+    
+    // Convert Blob back to File
+    const file = new File([event.blob], newFilename, { type: 'image/jpeg' });
+    
+    this.selectedFiles.push(file);
+    this.filePreviewUrls.push(event.objectUrl);
+    
+    this.imageFile = null;
+    this.processNextFileForCropping(); // Move to next file
+  }
+
+  cancelCrop() {
+    this.imageFile = null;
+    this.processNextFileForCropping(); // Move to next file in queue
+  }
+
+  removeFile(index: number) {
+    this.selectedFiles.splice(index, 1);
+    URL.revokeObjectURL(this.filePreviewUrls[index]);
+    this.filePreviewUrls.splice(index, 1);
   }
 
   onSeatMapToggle() {
@@ -239,9 +549,20 @@ export class EventCreateComponent {
     const c = this.seatColumns ?? 0;
     this.totalSeats = r * c;
 
+    // Helper to generate labels: 0 -> A, 25 -> Z, 26 -> AA...
+    const getLabel = (index: number) => {
+      let n = index;
+      let label = '';
+      while (n >= 0) {
+        label = String.fromCharCode(65 + (n % 26)) + label;
+        n = Math.floor(n / 26) - 1;
+      }
+      return label;
+    };
+
     // Row label range e.g. "A–J"
-    const first = String.fromCharCode(65);
-    const last = r > 0 ? String.fromCharCode(64 + Math.min(r, 26)) : '';
+    const first = getLabel(0);
+    const last = r > 0 ? getLabel(r - 1) : '';
     this.rowRangeLabel = r > 0 ? `${first}–${last}` : '';
 
     // Update max_tickets to match seat total
@@ -258,14 +579,20 @@ export class EventCreateComponent {
 
   onSubmit() {
     if (this.seatMapEnabled) {
-      if (!this.seatRows || this.seatRows < 1 || this.seatRows > 26) {
-        this.error = 'Rows must be between 1 and 26.';
+      if (!this.seatRows || this.seatRows < 1 || this.seatRows > 500) {
+        this.error = 'Rows must be between 1 and 500.';
         return;
       }
       if (!this.seatColumns || this.seatColumns < 1 || this.seatColumns > 100) {
         this.error = 'Seats per row must be between 1 and 100.';
         return;
       }
+    }
+
+    const selectedDate = new Date(this.eventDate);
+    if (selectedDate < new Date()) {
+      this.error = 'Event date and time must be in the future.';
+      return;
     }
 
     this.loading = true;
@@ -275,33 +602,41 @@ export class EventCreateComponent {
       title: this.title,
       description: this.description || undefined,
       location: this.location || undefined,
-      event_date: new Date(this.eventDate).toISOString(),
+      event_date: selectedDate.toISOString(),
       max_tickets: this.maxTickets!,
       ticket_price: this.ticketPrice!,
       vip_price: this.vipPrice || undefined,
       seat_map_enabled: this.seatMapEnabled || undefined,
       seat_rows: this.seatMapEnabled ? this.seatRows! : undefined,
       seat_columns: this.seatMapEnabled ? this.seatColumns! : undefined,
+      seat_layout: this.seatMapEnabled ? this.seatLayout : undefined,
     };
 
     this.eventService.createEvent(payload).subscribe({
       next: (event) => {
-        if (this.seatMapEnabled) {
-          // Generate seats before navigating
-          this.seatService.generateSeats(event.id).pipe(
-            finalize(() => {
-              this.loading = false;
-              this.router.navigate(['/events', event.id]);
-            })
-          ).subscribe({
-            error: () => {
-              // Seats failed — navigate anyway; organizer can regenerate
-              this.router.navigate(['/events', event.id]);
+        // After event created, upload images if any exist
+        const continueFlow = () => {
+          if (this.seatMapEnabled) {
+            this.seatService.generateSeats(event.id).pipe(
+              finalize(() => { this.loading = false; this.router.navigate(['/events', event.id]); })
+            ).subscribe({ error: () => { this.router.navigate(['/events', event.id]); } });
+          } else {
+            this.loading = false;
+            this.router.navigate(['/events', event.id]);
+          }
+        };
+
+        if (this.selectedFiles.length > 0) {
+          this.eventService.uploadImages(event.id, this.selectedFiles).subscribe({
+            next: () => continueFlow(),
+            error: (err) => {
+              this.error = 'Event created, but images failed to upload: ' + (err.error?.message || err.message);
+              // Still continue to event since it was successfully created
+              setTimeout(() => continueFlow(), 2000);
             }
           });
         } else {
-          this.loading = false;
-          this.router.navigate(['/events', event.id]);
+          continueFlow();
         }
       },
       error: (err) => {

@@ -53,25 +53,45 @@ pub async fn purchase_tickets(
         .fetch_one(&state.db)
         .await?;
 
-        if existing_count + quantity as i64 > 10 {
-            return Err(AppError::BadRequest(
-                format!("Maximum 10 tickets per user. You already have {}", existing_count)
-            ));
+        let mut total = rust_decimal::Decimal::from(0);
+        let mut ticket_types = Vec::new();
+
+        // Fetch seat details to determine pricing per seat
+        let seats = sqlx::query_as::<_, EventSeat>(
+            "SELECT * FROM event_seats WHERE id = ANY($1) AND event_id = $2"
+        )
+        .bind(seat_ids)
+        .bind(input.event_id)
+        .fetch_all(&state.db)
+        .await?;
+
+        if seats.len() != seat_ids.len() {
+            return Err(AppError::BadRequest("Some selected seats were not found".to_string()));
         }
 
-        let total = event.ticket_price * rust_decimal::Decimal::from(quantity);
+        for seat in &seats {
+            let is_vip = seat.row_label == "A" || seat.row_label == "B";
+            let price = if is_vip {
+                event.vip_price.ok_or_else(|| AppError::BadRequest("VIP seats detected but no VIP price set for this event".to_string()))?
+            } else {
+                event.ticket_price
+            };
+            total += price;
+            ticket_types.push(if is_vip { "vip" } else { "standard" });
+        }
 
         // Use a transaction for atomicity
         let mut tx = state.db.begin().await?;
 
         // Create order
         let order = sqlx::query_as::<_, Order>(
-            "INSERT INTO orders (user_id, event_id, total_amount, quantity) VALUES ($1, $2, $3, $4) RETURNING *"
+            "INSERT INTO orders (user_id, event_id, total_amount, quantity, ticket_type) VALUES ($1, $2, $3, $4, $5) RETURNING *"
         )
         .bind(claims.sub)
         .bind(input.event_id)
         .bind(total)
         .bind(quantity)
+        .bind("mixed") // Type is now determined per seat
         .fetch_one(&mut *tx)
         .await?;
 
@@ -102,9 +122,12 @@ pub async fn purchase_tickets(
             let ticket_id = Uuid::new_v4();
             let qr_data = qr::generate_qr_payload(ticket_id, input.event_id, claims.sub, &state.config.jwt_secret);
 
+            let is_vip = seat.row_label == "A" || seat.row_label == "B";
+            let current_ticket_type = if is_vip { "vip" } else { "standard" };
+
             let ticket = sqlx::query_as::<_, Ticket>(
-                r#"INSERT INTO tickets (id, order_id, event_id, seat_id, user_id, qr_code_data)
-                   VALUES ($1, $2, $3, $4, $5, $6) RETURNING *"#
+                r#"INSERT INTO tickets (id, order_id, event_id, seat_id, user_id, qr_code_data, ticket_type)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *"#
             )
             .bind(ticket_id)
             .bind(order.id)
@@ -112,6 +135,7 @@ pub async fn purchase_tickets(
             .bind(seat.id)
             .bind(claims.sub)
             .bind(&qr_data)
+            .bind(current_ticket_type)
             .fetch_one(&mut *tx)
             .await?;
 
@@ -156,16 +180,25 @@ pub async fn purchase_tickets(
         ));
     }
 
-    let total = event.ticket_price * rust_decimal::Decimal::from(quantity);
+    let ticket_type = input.ticket_type.as_deref().unwrap_or("standard");
+    let unit_price = if ticket_type == "vip" {
+        event.vip_price.ok_or_else(|| AppError::BadRequest("VIP tickets are not available for this event".to_string()))?
+    } else {
+        event.ticket_price
+    };
+
+    let total = unit_price * rust_decimal::Decimal::from(quantity);
+    let mut tx = state.db.begin().await?;
 
     let order = sqlx::query_as::<_, Order>(
-        "INSERT INTO orders (user_id, event_id, total_amount, quantity) VALUES ($1, $2, $3, $4) RETURNING *"
+        "INSERT INTO orders (user_id, event_id, total_amount, quantity, ticket_type) VALUES ($1, $2, $3, $4, $5) RETURNING *"
     )
     .bind(claims.sub)
     .bind(input.event_id)
     .bind(total)
     .bind(quantity)
-    .fetch_one(&state.db)
+    .bind(ticket_type)
+    .fetch_one(&mut *tx)
     .await?;
 
     let mut tickets = Vec::new();
@@ -174,15 +207,16 @@ pub async fn purchase_tickets(
         let qr_data = qr::generate_qr_payload(ticket_id, input.event_id, claims.sub, &state.config.jwt_secret);
 
         let ticket = sqlx::query_as::<_, Ticket>(
-            r#"INSERT INTO tickets (id, order_id, event_id, user_id, qr_code_data)
-               VALUES ($1, $2, $3, $4, $5) RETURNING *"#
+            r#"INSERT INTO tickets (id, order_id, event_id, user_id, qr_code_data, ticket_type)
+               VALUES ($1, $2, $3, $4, $5, $6) RETURNING *"#
         )
         .bind(ticket_id)
         .bind(order.id)
         .bind(input.event_id)
         .bind(claims.sub)
         .bind(&qr_data)
-        .fetch_one(&state.db)
+        .bind(ticket_type)
+        .fetch_one(&mut *tx)
         .await?;
 
         tickets.push(ticket);
@@ -191,8 +225,10 @@ pub async fn purchase_tickets(
     sqlx::query("UPDATE events SET tickets_sold = tickets_sold + $1 WHERE id = $2")
         .bind(quantity)
         .bind(input.event_id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
+
+    tx.commit().await?;
 
     Ok(Json(tickets))
 }
@@ -212,14 +248,51 @@ pub async fn my_tickets(
     Ok(Json(tickets))
 }
 
-/// GET /api/tickets/:id/qr — get ticket with QR code image
+/// GET /api/tickets/:id/qr — get ticket with QR code image and event details
 pub async fn get_ticket_qr(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TicketWithQr>, AppError> {
-    let ticket = sqlx::query_as::<_, Ticket>(
-        "SELECT * FROM tickets WHERE id = $1 AND user_id = $2"
+    
+    // We fetch the ticket alongside joined event and seat data.
+    // We use a custom struct to deserialize the joined query result.
+    #[derive(sqlx::FromRow)]
+    struct TicketWithEventData {
+        // Ticket fields
+        id: Uuid,
+        order_id: Uuid,
+        event_id: Uuid,
+        seat_id: Option<Uuid>,
+        user_id: Uuid,
+        qr_code_data: String,
+        ticket_type: String,
+        status: String,
+        scanned_at: Option<chrono::DateTime<chrono::Utc>>,
+        created_at: chrono::DateTime<chrono::Utc>,
+        // Event fields
+        event_title: String,
+        event_images: Option<Vec<String>>,
+        event_date: chrono::DateTime<chrono::Utc>,
+        // Seat fields
+        row_label: Option<String>,
+        seat_number: Option<i32>,
+    }
+
+    let data = sqlx::query_as::<_, TicketWithEventData>(
+        r#"
+        SELECT 
+            t.*,
+            e.title as event_title,
+            e.image_urls as event_images,
+            e.event_date as event_date,
+            s.row_label,
+            s.seat_number
+        FROM tickets t
+        JOIN events e ON t.event_id = e.id
+        LEFT JOIN event_seats s ON t.seat_id = s.id
+        WHERE t.id = $1 AND t.user_id = $2
+        "#
     )
     .bind(id)
     .bind(claims.sub)
@@ -227,11 +300,37 @@ pub async fn get_ticket_qr(
     .await?
     .ok_or_else(|| AppError::NotFound("Ticket not found".to_string()))?;
 
-    let qr_image = qr::generate_qr_image_base64(&ticket.qr_code_data)
+    let qr_image = qr::generate_qr_image_base64(&data.qr_code_data)
         .map_err(|e| AppError::Internal(e))?;
+
+    let ticket = Ticket {
+        id: data.id,
+        order_id: data.order_id,
+        event_id: data.event_id,
+        seat_id: data.seat_id,
+        user_id: data.user_id,
+        qr_code_data: data.qr_code_data,
+        ticket_type: data.ticket_type,
+        status: data.status,
+        scanned_at: data.scanned_at,
+        created_at: data.created_at,
+    };
+
+    let first_image = data.event_images.and_then(|mut images| {
+        if !images.is_empty() { Some(images.remove(0)) } else { None }
+    });
+
+    let seat_label = match (data.row_label, data.seat_number) {
+        (Some(r), Some(n)) => Some(format!("Row {} - Seat {}", r, n)),
+        _ => None,
+    };
 
     Ok(Json(TicketWithQr {
         ticket,
         qr_image_base64: qr_image,
+        event_title: data.event_title,
+        event_image: first_image,
+        event_date: data.event_date,
+        seat_label,
     }))
 }

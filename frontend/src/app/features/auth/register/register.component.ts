@@ -93,10 +93,10 @@ import { AuthService } from '../../../core/services/auth.service';
       cursor:pointer; transition:all 0.2s ease;
       background:var(--bg-card);
     }
-    .role-option:hover { border-color:rgba(124,58,237,0.4); background:var(--bg-card-hover); }
+    .role-option:hover { border-color:rgba(234,179,8,0.4); background:var(--bg-card-hover); }
     .role-option.selected {
       border-color:var(--accent-primary);
-      background:rgba(124,58,237,0.1);
+      background:rgba(234,179,8,0.1);
       box-shadow:0 0 0 1px var(--accent-primary);
     }
     .role-icon { font-size:1.8rem; flex-shrink:0; }

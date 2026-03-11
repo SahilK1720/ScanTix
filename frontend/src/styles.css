@@ -3,24 +3,24 @@
 /* ========== CSS Variables / Design Tokens ========== */
 :root {
   /* Colors */
-  --bg-primary: #0a0a1a;
-  --bg-secondary: #111128;
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
   --bg-card: rgba(255, 255, 255, 0.04);
   --bg-card-hover: rgba(255, 255, 255, 0.08);
   --bg-glass: rgba(255, 255, 255, 0.06);
   --border-glass: rgba(255, 255, 255, 0.1);
 
-  --text-primary: #f0f0f5;
-  --text-secondary: #9a9ab5;
-  --text-muted: #6b6b80;
+  --text-primary: #f4f4f5;
+  --text-secondary: #d4d4d8;
+  --text-muted: #a1a1aa;
 
-  --accent-primary: #7c3aed;
-  --accent-secondary: #3b82f6;
-  --accent-gradient: linear-gradient(135deg, #7c3aed 0%, #3b82f6 50%, #06b6d4 100%);
-  --accent-glow: rgba(124, 58, 237, 0.3);
+  --accent-primary: #eab308;
+  --accent-secondary: #facc15;
+  --accent-gradient: linear-gradient(135deg, #facc15 0%, #eab308 50%, #ca8a04 100%);
+  --accent-glow: rgba(234, 179, 8, 0.3);
 
   --success: #10b981;
-  --warning: #f59e0b;
+  --warning: #f97316;
   --danger: #ef4444;
   --info: #06b6d4;
 
@@ -78,9 +78,9 @@ body::before {
   width: 100%;
   height: 100%;
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(6, 182, 212, 0.04) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 50%, rgba(234, 179, 8, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(250, 204, 21, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(202, 138, 4, 0.04) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
@@ -113,7 +113,7 @@ a:hover {
 
 .glass-card:hover {
   background: var(--bg-card-hover);
-  border-color: rgba(124, 58, 237, 0.2);
+  border-color: rgba(234, 179, 8, 0.2);
   box-shadow: var(--shadow-glow);
   transform: translateY(-2px);
 }
@@ -158,12 +158,13 @@ a:hover {
 
 .btn-primary {
   background: var(--accent-gradient);
-  color: white;
-  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+  color: #000;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 6px 25px rgba(124, 58, 237, 0.5);
+  box-shadow: 0 6px 25px rgba(234, 179, 8, 0.5);
   transform: translateY(-1px);
 }
 
@@ -226,7 +227,7 @@ a:hover {
 
 .form-control:focus {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.15);
   background: var(--bg-card-hover);
 }
 
@@ -280,7 +281,7 @@ textarea.form-control {
 }
 
 .badge-primary {
-  background: rgba(124, 58, 237, 0.15);
+  background: rgba(234, 179, 8, 0.15);
   color: var(--accent-primary);
 }
 
