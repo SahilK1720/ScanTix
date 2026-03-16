@@ -14,12 +14,12 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
   imports: [CommonModule, FormsModule, ImageCropperComponent],
   template: `
     <div class="page-container animate-fadeIn">
-      <div class="page-header">
+      <div class="page-header" style="text-align: center; margin-bottom: 32px;">
         <h1>➕ <span class="gradient-text">Create Event</span></h1>
         <p>Set up your event details and start selling tickets</p>
       </div>
 
-      <div class="glass-card" style="padding:40px;max-width:760px">
+      <div class="glass-card" style="padding:40px;max-width:760px;margin: 0 auto;">
         @if (error) { <div class="alert alert-danger">{{ error }}</div> }
 
         <form #eventForm="ngForm" (ngSubmit)="onSubmit()">
@@ -139,7 +139,7 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
             </div>
 
             @if (seatMapEnabled) {
-              <div class="seat-config" @fadeIn>
+              <div class="seat-config">
                 <div class="form-group" style="margin-bottom:16px">
                   <label>Layout Style</label>
                   <div style="display:flex;gap:16px;margin-top:8px">

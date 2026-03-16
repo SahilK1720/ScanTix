@@ -19,6 +19,11 @@ pub async fn purchase_tickets(
     Extension(claims): Extension<Claims>,
     Json(input): Json<PurchaseRequest>,
 ) -> Result<Json<Vec<Ticket>>, AppError> {
+    // Restriction: Only attendees can purchase tickets
+    if claims.role != "attendee" {
+        return Err(AppError::Forbidden("Only attendee accounts can purchase tickets".to_string()));
+    }
+
     // Fetch event
     let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = $1")
         .bind(input.event_id)
@@ -239,7 +244,16 @@ pub async fn my_tickets(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<Ticket>>, AppError> {
     let tickets = sqlx::query_as::<_, Ticket>(
-        "SELECT * FROM tickets WHERE user_id = $1 ORDER BY created_at DESC"
+        r#"
+        SELECT 
+            t.*,
+            e.title as event_title,
+            e.event_date as event_date
+        FROM tickets t
+        JOIN events e ON t.event_id = e.id
+        WHERE t.user_id = $1 
+        ORDER BY t.created_at DESC
+        "#
     )
     .bind(claims.sub)
     .fetch_all(&state.db)
@@ -314,6 +328,8 @@ pub async fn get_ticket_qr(
         status: data.status,
         scanned_at: data.scanned_at,
         created_at: data.created_at,
+        event_title: Some(data.event_title.clone()),
+        event_date: Some(data.event_date),
     };
 
     let first_image = data.event_images.and_then(|mut images| {

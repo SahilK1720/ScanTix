@@ -70,7 +70,7 @@ import { environment } from '../../../../environments/environment';
                   #{{ ticket.id.slice(0, 16) }}...
                 </p>
                 <p style="font-size:0.82rem;color:var(--text-secondary)">
-                  📅 {{ ticket.created_at | date:'mediumDate' }}
+                  📅 {{ ticket.event_date || ticket.created_at | date:'EEEE, MMM d, y' }} • {{ ticket.event_date || ticket.created_at | date:'h:mm a' }} IST
                 </p>
                 <p style="font-size:0.78rem;color:var(--accent-primary);margin-top:8px;font-weight:500">
                   Tap to view QR code →
@@ -105,7 +105,7 @@ import { environment } from '../../../../environments/environment';
               <div style="padding: 20px; text-align: center;">
                 <h2 style="margin-bottom: 4px; font-size: 1.4rem; white-space: pre-wrap;">{{ qrData.event_title }}</h2>
                 <div style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">
-                  📅 {{ qrData.event_date | date:'mediumDate' }} • {{ qrData.event_date | date:'shortTime' }}
+                  📅 {{ qrData.event_date | date:'EEEE, MMM d, y' }} • {{ qrData.event_date | date:'h:mm a' }} IST
                 </div>
 
                 <div style="display:flex; gap:8px; justify-content:center; margin-bottom: 20px; flex-wrap: wrap;">
@@ -134,7 +134,7 @@ import { environment } from '../../../../environments/environment';
 
                 @if (selectedTicket.status === 'used' && selectedTicket.scanned_at) {
                   <p style="color:var(--info);font-size:0.8rem;margin-top:12px; font-weight: 500;">
-                    ✅ Scanned on {{ selectedTicket.scanned_at | date:'medium' }}
+                    ✅ Scanned on {{ selectedTicket.scanned_at | date:'EEEE, MMM d, y' }} • {{ selectedTicket.scanned_at | date:'h:mm a' }} IST
                   </p>
                 } @else {
                   <p style="color:var(--text-muted);font-size:0.8rem;margin-top:8px">

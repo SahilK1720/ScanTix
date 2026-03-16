@@ -59,7 +59,7 @@ import { AuthService } from '../../../core/services/auth.service';
                   @if (event.location) {
                     <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px">📍 {{ event.location }}</p>
                   }
-                  <p style="font-size:0.85rem;color:var(--text-secondary)">📅 {{ event.event_date | date:'medium' }}</p>
+                  <p style="font-size:0.85rem;color:var(--text-secondary)">📅 {{ event.event_date | date:'EEEE, MMM d, y' }} • {{ event.event_date | date:'h:mm a' }} IST</p>
                 </div>
 
                 <div style="display:flex;align-items:center;gap:32px;flex-wrap:wrap">

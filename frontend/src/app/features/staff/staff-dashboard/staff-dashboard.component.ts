@@ -5,10 +5,10 @@ import { StaffService } from '../../../core/services/staff.service';
 import { ScanEvent } from '../../../core/services/event.service';
 
 @Component({
-    selector: 'app-staff-dashboard',
-    standalone: true,
-    imports: [CommonModule, RouterLink],
-    template: `
+  selector: 'app-staff-dashboard',
+  standalone: true,
+  imports: [CommonModule, RouterLink],
+  template: `
     <div class="page-container animate-fadeIn">
       <div class="page-header">
         <h1>💂 <span class="gradient-text">Staff Dashboard</span></h1>
@@ -34,7 +34,7 @@ import { ScanEvent } from '../../../core/services/event.service';
                 <span class="status-badge" [class.published]="event.status === 'published'">
                   {{ event.status | titlecase }}
                 </span>
-                <span class="date">{{ event.event_date | date:'mediumDate' }}</span>
+                <span class="date">{{ event.event_date | date:'EEEE, MMM d, y' }} • {{ event.event_date | date:'h:mm a' }} IST</span>
               </div>
               
               <h3 class="event-title">{{ event.title }}</h3>
@@ -53,7 +53,7 @@ import { ScanEvent } from '../../../core/services/event.service';
       }
     </div>
   `,
-    styles: [`
+  styles: [`
     .event-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -114,20 +114,20 @@ import { ScanEvent } from '../../../core/services/event.service';
   `]
 })
 export class StaffDashboardComponent implements OnInit {
-    events: ScanEvent[] = [];
-    loading = true;
+  events: ScanEvent[] = [];
+  loading = true;
 
-    constructor(private staffService: StaffService) { }
+  constructor(private staffService: StaffService) { }
 
-    ngOnInit() {
-        this.staffService.getAssignedEvents().subscribe({
-            next: (events) => {
-                this.events = events;
-                this.loading = false;
-            },
-            error: () => {
-                this.loading = false;
-            }
-        });
-    }
+  ngOnInit() {
+    this.staffService.getAssignedEvents().subscribe({
+      next: (events) => {
+        this.events = events;
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+      }
+    });
+  }
 }

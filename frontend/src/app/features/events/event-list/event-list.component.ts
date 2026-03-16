@@ -133,7 +133,7 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
                 }
 
                 <div class="event-meta">
-                  <div class="meta-item">📅 {{ event.event_date | date:'mediumDate' }}</div>
+                  <div class="meta-item">📅 {{ event.event_date | date:'EEEE, MMM d, y' }} • {{ event.event_date | date:'h:mm a' }} IST</div>
                   <div class="meta-item">💰 &#8377;{{ event.ticket_price }}</div>
                   <div class="meta-item">🎟️ {{ event.max_tickets - event.tickets_sold }} left</div>
                 </div>

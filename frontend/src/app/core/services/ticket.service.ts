@@ -14,6 +14,9 @@ export interface Ticket {
     status: string;
     scanned_at: string | null;
     created_at: string;
+    // Joined fields
+    event_title?: string;
+    event_date?: string;
 }
 
 export interface TicketWithQr {

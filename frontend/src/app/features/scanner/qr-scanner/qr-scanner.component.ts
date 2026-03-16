@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TicketService, ValidateResponse } from '../../../core/services/ticket.service';
@@ -121,16 +121,24 @@ export class QrScannerComponent {
     result: ValidateResponse | null = null;
     validating = false;
 
-    constructor(private ticketService: TicketService) { }
-
+    constructor(
+        private ticketService: TicketService,
+        private cdr: ChangeDetectorRef
+    ) { }
+    
     validate() {
+        this.qrInput = this.qrInput.trim();
+        if (!this.qrInput) return;
+
         this.validating = true;
         this.result = null;
+        this.cdr.detectChanges();
 
-        this.ticketService.validateTicket(this.qrInput.trim()).subscribe({
+        this.ticketService.validateTicket(this.qrInput).subscribe({
             next: (res) => {
                 this.validating = false;
                 this.result = res;
+                this.cdr.detectChanges();
             },
             error: (err) => {
                 this.validating = false;
@@ -141,6 +149,7 @@ export class QrScannerComponent {
                     event_title: null,
                     attendee_name: null
                 };
+                this.cdr.detectChanges();
             }
         });
     }

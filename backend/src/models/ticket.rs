@@ -15,6 +15,11 @@ pub struct Ticket {
     pub status: String,
     pub scanned_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    // Joined fields
+    #[sqlx(default)]
+    pub event_title: Option<String>,
+    #[sqlx(default)]
+    pub event_date: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]

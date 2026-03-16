@@ -67,7 +67,10 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
               <span>📅</span>
               <div>
                 <div class="detail-label">Date & Time</div>
-                <div class="detail-value">{{ event.event_date | date:'full' }}</div>
+                <div class="detail-value">
+                  {{ event.event_date | date:'EEEE, MMMM d, y' }}<br>
+                  <span style="color:var(--accent-primary)">{{ event.event_date | date:'h:mm a' }} IST</span>
+                </div>
               </div>
             </div>
             @if (event.location) {
@@ -109,6 +112,11 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
           <!-- ── Purchase / Seat Section ──────────────────────────────────────── -->
           @if (event.status !== 'cancelled' && auth.isAuthenticated) {
             <div class="glass-card" style="padding:24px;margin-top:32px;background:rgba(234,179,8,0.05);border-color:rgba(234,179,8,0.2)">
+              @if (auth.isOrganizer) {
+                <div class="restriction-banner" style="padding:16px;margin-bottom:24px;border-radius:8px;font-size:0.9rem">
+                  ℹ️ <strong>Organizer View:</strong> You can see the live seat availability, but seat selection and ticket purchases are disabled for organizer accounts.
+                </div>
+              }
 
               @if (event.seat_map_enabled) {
                 <!-- SEAT MAP MODE -->
@@ -124,10 +132,11 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
                   [eventId]="event.id"
                   [currentUserId]="auth.currentUser?.id ?? null"
                   [layoutType]="event.seat_layout"
+                  [readOnly]="auth.isOrganizer"
                   (selectionChanged)="onSeatSelectionChanged($event)"
                 ></app-seat-map>
 
-                @if (selectedSeats.length > 0) {
+                @if (selectedSeats.length > 0 && !auth.isOrganizer) {
                   <div style="display:flex;align-items:center;gap:16px;margin-top:20px;flex-wrap:wrap">
                     <div>
                       <p style="color:var(--text-secondary);font-size:.9rem;margin:0">
@@ -164,25 +173,27 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
 
                 </div>
 
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding:12px;background:rgba(234,179,8,0.1);border-radius:8px">
-                  <span style="color:var(--text-secondary)">Total Amount</span>
-                  <span style="font-size:1.4rem;font-weight:700;color:var(--accent-primary)">
-                    {{ calculateTotal() | currency:'INR' }}
-                  </span>
-                </div>
-                  <button class="btn btn-primary" (click)="purchase()" [disabled]="purchasing">
-                    @if (purchasing) {
-                      <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
-                    } @else { Buy Now }
-                  </button>
-              }
-
-            </div>
-          } @else if (!auth.isAuthenticated) {
-            <div style="margin-top:32px;text-align:center">
-              <a routerLink="/login" class="btn btn-primary btn-lg">Login to Purchase Tickets</a>
-            </div>
-          }
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding:12px;background:rgba(234,179,8,0.1);border-radius:8px">
+                    <span style="color:var(--text-secondary)">Total Amount</span>
+                    <span style="font-size:1.4rem;font-weight:700;color:var(--accent-primary)">
+                      {{ calculateTotal() | currency:'INR' }}
+                    </span>
+                  </div>
+                  
+                  @if (!auth.isOrganizer) {
+                    <button class="btn btn-primary" (click)="purchase()" [disabled]="purchasing">
+                      @if (purchasing) {
+                        <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
+                      } @else { Buy Now }
+                    </button>
+                  }
+                }
+              </div>
+            } @else if (!auth.isAuthenticated) {
+              <div style="margin-top:32px;text-align:center">
+                <a routerLink="/login" class="btn btn-primary btn-lg">Login to Purchase Tickets</a>
+              </div>
+            }
 
           <!-- ── Manager Staff Selection (Organizer Only) ────────────────────── -->
           @if (event.organizer_id === auth.currentUser?.id) {
@@ -219,6 +230,10 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
     .detail-item { display:flex; gap:12px; align-items:center; padding:16px; background:var(--bg-card); border-radius:var(--radius-md); }
     .detail-label { font-size:.8rem; color:var(--text-muted); margin-bottom:4px; }
     .detail-value { font-weight:600; }
+    .restriction-banner {
+      background: rgba(59, 130, 246, 0.05);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
   `]
 })
 export class EventDetailComponent implements OnInit, OnDestroy {

@@ -62,7 +62,7 @@ import { AuthService } from '../../core/services/auth.service';
                   <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px">📍 {{ event.location }}</p>
                 }
                 <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px">
-                  📅 {{ event.event_date | date:'medium' }}
+                  📅 {{ event.event_date | date:'EEEE, MMM d, y' }} • {{ event.event_date | date:'h:mm a' }} IST
                 </p>
                 <div style="margin-bottom:12px">
                   <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:var(--text-muted);margin-bottom:6px">
@@ -126,7 +126,7 @@ import { AuthService } from '../../core/services/auth.service';
                   </span>
                 </div>
                 <p style="font-family:monospace;font-size:0.78rem;color:var(--text-muted)">{{ ticket.id.slice(0,16) }}...</p>
-                <p style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px">{{ ticket.created_at | date:'mediumDate' }}</p>
+                <p style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px">{{ ticket.created_at | date:'EEEE, MMM d, y' }} • {{ ticket.created_at | date:'h:mm a' }} IST</p>
               </a>
             }
           </div>

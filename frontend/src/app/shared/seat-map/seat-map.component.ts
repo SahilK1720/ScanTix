@@ -18,7 +18,9 @@ interface SeatRow {
   template: `
     <div class="seat-map-wrapper">
       <!-- Stage -->
-      <div class="stage-bar">🎭 STAGE / SCREEN</div>
+      @if (layoutType !== 'stadium') {
+        <div class="stage-bar">🎭 STAGE / SCREEN</div>
+      }
 
       <!-- Legend -->
       <div class="legend">
@@ -257,6 +259,7 @@ export class SeatMapComponent implements OnInit, OnDestroy {
   @Input() currentUserId: string | null = null;
   @Input() layoutType: string = 'grid';
   @Input() selectedSeats: EventSeat[] = []; // This input is not used internally, mySeats is the source of truth
+  @Input() readOnly: boolean = false;
 
   @Output() selectionChanged = new EventEmitter<EventSeat[]>();
 
@@ -476,6 +479,7 @@ export class SeatMapComponent implements OnInit, OnDestroy {
   }
 
   onSeatClick(seat: EventSeat) {
+    if (this.readOnly) return;
     if (this.isMyLock(seat)) {
       this.deselect(seat);
     } else if (seat.status === 'available') {
