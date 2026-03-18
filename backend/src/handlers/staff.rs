@@ -1,178 +1,451 @@
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::models::event::Event;
-use crate::models::staff::{AssignStaffRequest, EventStaff, ValidateTicketRequest, ValidateTicketResponse};
-use crate::models::ticket::Ticket;
-use crate::models::user::User;
+use crate::models::staff::{
+    AddStaffRequest, EventStaff, ScanRequest, ScanResponse, ScannerInfoResponse,
+};
 use crate::utils::jwt::Claims;
 use crate::utils::qr;
-use crate::AppState;
+use crate::{utils, AppState};
 
-/// POST /api/events/:id/staff/assign — organizer assigns a staff member
-pub async fn assign_staff(
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+/// Fetch event and verify it exists (404) and that `organizer_id == claims.sub` (403).
+async fn verify_event_ownership(
+    state: &AppState,
+    event_id: Uuid,
+    organizer_id: Uuid,
+) -> Result<crate::models::event::Event, AppError> {
+    let event = sqlx::query_as::<_, crate::models::event::Event>(
+        "SELECT * FROM events WHERE id = $1",
+    )
+    .bind(event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Event not found".to_string()))?;
+
+    if event.organizer_id != organizer_id {
+        return Err(AppError::Forbidden("Forbidden".to_string()));
+    }
+
+    Ok(event)
+}
+
+// ─── 4.1  GET /api/organizer/events/:eventId/staff ──────────────────────────
+
+pub async fn list_staff(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(event_id): Path<Uuid>,
-    Json(input): Json<AssignStaffRequest>,
-) -> Result<Json<EventStaff>, AppError> {
-    // Verify event ownership
-    let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = $1")
-        .bind(event_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Event not found".to_string()))?;
+) -> Result<impl IntoResponse, AppError> {
+    verify_event_ownership(&state, event_id, claims.sub).await?;
 
-    if event.organizer_id != claims.sub && claims.role != "admin" {
-        return Err(AppError::Forbidden("Only the organizer can assign staff".to_string()));
-    }
-
-    // Find user by email
-    let staff_user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
-        .bind(&input.email)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User with this email not found".to_string()))?;
-
-    // Create assignments
-    let assignment = sqlx::query_as::<_, EventStaff>(
-        "INSERT INTO event_staff (event_id, staff_id, assigned_by) VALUES ($1, $2, $3) RETURNING *"
+    let staff = sqlx::query_as::<_, EventStaff>(
+        "SELECT * FROM event_staff WHERE event_id = $1 ORDER BY created_at ASC",
     )
     .bind(event_id)
-    .bind(staff_user.id)
-    .bind(claims.sub)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        if e.to_string().contains("event_staff_unique") {
-            AppError::Conflict("Staff member is already assigned to this event".to_string())
-        } else {
-            AppError::Internal("Database error".to_string())
-        }
-    })?;
-
-    // Upgrade role to staff if they are just a user
-    if staff_user.role == "user" {
-        sqlx::query("UPDATE users SET role = 'staff' WHERE id = $1")
-            .bind(staff_user.id)
-            .execute(&state.db)
-            .await?;
-    }
-
-    Ok(Json(assignment))
-}
-
-/// GET /api/staff/events — Staff member retrieves events they are assigned to
-pub async fn get_assigned_events(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<Event>>, AppError> {
-    let events = sqlx::query_as::<_, Event>(
-        r#"SELECT e.* FROM events e 
-           JOIN event_staff es ON e.id = es.event_id 
-           WHERE es.staff_id = $1 
-           ORDER BY e.event_date ASC"#
-    )
-    .bind(claims.sub)
     .fetch_all(&state.db)
     .await?;
 
-    Ok(Json(events))
+    Ok(Json(staff))
 }
 
-/// POST /api/tickets/validate — Staff validates a scanned QR code
-pub async fn validate_ticket(
+// ─── 4.2  POST /api/organizer/events/:eventId/staff ─────────────────────────
+
+pub async fn add_staff(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(input): Json<ValidateTicketRequest>,
-) -> Result<Json<ValidateTicketResponse>, AppError> {
-    
-    // Verify auth: User must be staff or organizer for this event
-    let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = $1")
-        .bind(input.event_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Event not found".to_string()))?;
-        
-    let is_organizer = event.organizer_id == claims.sub || claims.role == "admin";
-    let is_staff = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM event_staff WHERE event_id = $1 AND staff_id = $2)"
+    Path(event_id): Path<Uuid>,
+    Json(body): Json<AddStaffRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let event = verify_event_ownership(&state, event_id, claims.sub).await?;
+
+    // Validate required fields
+    if body.name.trim().is_empty() || body.email.trim().is_empty() || body.phone_number.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "name, email, and phone_number are required".to_string(),
+        ));
+    }
+
+    // Insert new staff member (access_token generated by DB default)
+    let staff = sqlx::query_as::<_, EventStaff>(
+        r#"INSERT INTO event_staff (event_id, organizer_id, name, email, phone_number)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *"#,
     )
-    .bind(input.event_id)
+    .bind(event_id)
     .bind(claims.sub)
+    .bind(body.name.trim())
+    .bind(body.email.trim())
+    .bind(body.phone_number.trim())
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("event_staff_unique_email") {
+            AppError::Conflict(
+                "Staff with this email already exists for this event".to_string(),
+            )
+        } else {
+            AppError::Database(e)
+        }
+    })?;
+
+    // Fetch organizer's full_name for the email
+    let organizer_name: String = sqlx::query_scalar(
+        "SELECT full_name FROM users WHERE id = $1",
+    )
+    .bind(claims.sub)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or_else(|| "Organizer".to_string());
+
+    // Build scanner link — format: /scan/{event-slug}/{access_token}
+    // Slug is decorative (human-readable), access_token is what authenticates
+    let slug: String = event.title
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    let scanner_link = format!(
+        "{}/scan/{}/{}",
+        state.config.app_base_url, slug, staff.access_token
+    );
+
+    // Send invite email (fire-and-forget)
+    // If SMTP credentials are not configured, just log the link for dev convenience
+    if state.config.smtp_username.is_empty() || state.config.smtp_password.is_empty() {
+        tracing::info!(
+            "📧 [DEV] Scanner invite for {} ({}): {}",
+            staff.name, staff.email, scanner_link
+        );
+    } else {
+        let email_result = utils::email::send_scanner_invite(
+            &staff.email,
+            &staff.name,
+            &organizer_name,
+            &event.title,
+            event.event_date,
+            &scanner_link,
+            &state.config,
+        )
+        .await;
+
+        match email_result {
+            Ok(_) => tracing::info!("📧 Scanner invite sent to {}", staff.email),
+            Err(e) => tracing::error!(
+                "Failed to send scanner invite email to {}: {}\n📧 [DEV] Scanner link: {}",
+                staff.email, e, scanner_link
+            ),
+        }
+    }
+
+    Ok((StatusCode::CREATED, Json(staff)).into_response())
+}
+
+// ─── 4.3  DELETE / PATCH revoke / PATCH restore ─────────────────────────────
+
+pub async fn delete_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((event_id, staff_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    verify_event_ownership(&state, event_id, claims.sub).await?;
+
+    let result = sqlx::query(
+        "DELETE FROM event_staff WHERE id = $1 AND event_id = $2",
+    )
+    .bind(staff_id)
+    .bind(event_id)
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("Staff member not found".to_string()));
+    }
+
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+pub async fn revoke_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((event_id, staff_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    verify_event_ownership(&state, event_id, claims.sub).await?;
+
+    let staff = sqlx::query_as::<_, EventStaff>(
+        r#"UPDATE event_staff
+           SET is_revoked = TRUE, updated_at = NOW()
+           WHERE id = $1 AND event_id = $2
+           RETURNING *"#,
+    )
+    .bind(staff_id)
+    .bind(event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Staff member not found".to_string()))?;
+
+    Ok(Json(staff))
+}
+
+pub async fn restore_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((event_id, staff_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    verify_event_ownership(&state, event_id, claims.sub).await?;
+
+    let staff = sqlx::query_as::<_, EventStaff>(
+        r#"UPDATE event_staff
+           SET is_revoked = FALSE, updated_at = NOW()
+           WHERE id = $1 AND event_id = $2
+           RETURNING *"#,
+    )
+    .bind(staff_id)
+    .bind(event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Staff member not found".to_string()))?;
+
+    Ok(Json(staff))
+}
+
+// ─── 4.4  GET /api/organizer/events/:eventId/staff/scanner/:accessToken ──────
+
+pub async fn scanner_info(
+    State(state): State<AppState>,
+    Path((event_id, access_token)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    // Look up staff by (access_token, event_id)
+    let staff = sqlx::query_as::<_, EventStaff>(
+        "SELECT * FROM event_staff WHERE access_token = $1 AND event_id = $2",
+    )
+    .bind(access_token)
+    .bind(event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Scanner not found".to_string()))?;
+
+    if staff.is_revoked {
+        return Err(AppError::Forbidden("Access revoked".to_string()));
+    }
+    if !staff.is_active {
+        return Err(AppError::Forbidden("Access inactive".to_string()));
+    }
+
+    // Fetch event name and date
+    let (event_name, event_date): (String, chrono::DateTime<chrono::Utc>) =
+        sqlx::query_as("SELECT title, event_date FROM events WHERE id = $1")
+            .bind(event_id)
+            .fetch_one(&state.db)
+            .await?;
+
+    // Count daily scans for this staff member
+    let daily_scan_count: i64 = sqlx::query_scalar(
+        r#"SELECT COUNT(*) FROM scanned_tickets
+           WHERE staff_id = $1 AND DATE(scanned_at) = CURRENT_DATE"#,
+    )
+    .bind(staff.id)
     .fetch_one(&state.db)
     .await?;
 
-    if !is_organizer && !is_staff {
-        return Err(AppError::Forbidden("You are not authorized to validate tickets for this event".to_string()));
+    Ok(Json(ScannerInfoResponse {
+        event_id,
+        event_name,
+        event_date,
+        daily_scan_count,
+        staff_name: staff.name,
+    }))
+}
+
+// ─── 4.5  POST /api/organizer/events/:eventId/staff/scanner/:accessToken/scan ─
+
+pub async fn scanner_scan(
+    State(state): State<AppState>,
+    Path((event_id, access_token)): Path<(Uuid, Uuid)>,
+    Json(body): Json<ScanRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    // Look up staff by (access_token, event_id)
+    let staff = sqlx::query_as::<_, EventStaff>(
+        "SELECT * FROM event_staff WHERE access_token = $1 AND event_id = $2",
+    )
+    .bind(access_token)
+    .bind(event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Scanner not found".to_string()))?;
+
+    // Check revocation first
+    if staff.is_revoked {
+        return Err(AppError::Forbidden("Access revoked".to_string()));
     }
 
-    // Attempt to verify QR data
-    let ticket_id = match qr::verify_qr_payload(&input.qr_data, &state.config.jwt_secret) {
-        Some((t_id, _, _)) => t_id,
+    // Verify QR HMAC
+    let qr_result = qr::verify_qr_payload(&body.qr_data, &state.config.jwt_secret);
+    let (ticket_id, qr_event_id, user_id) = match qr_result {
         None => {
-            return Ok(Json(ValidateTicketResponse {
+            return Ok(Json(ScanResponse {
                 status: "INVALID_TICKET".to_string(),
-                message: "Failed to verify QR code signature. Invalid or forged ticket.".to_string(),
-                ticket_id: None,
-            }));
+                message: "Invalid or forged ticket".to_string(),
+                attendee_name: None,
+            })
+            .into_response());
         }
+        Some(ids) => ids,
     };
 
-    // Use transaction to ensure atomic check-and-update
+    // Verify ticket belongs to this event
+    if qr_event_id != event_id {
+        return Ok(Json(ScanResponse {
+            status: "INVALID_TICKET".to_string(),
+            message: "Invalid or forged ticket".to_string(),
+            attendee_name: None,
+        })
+        .into_response());
+    }
+
+    // Begin transaction
     let mut tx = state.db.begin().await?;
 
-    // Lock the row FOR UPDATE to prevent race conditions (double entry from two scanners)
-    let ticket = sqlx::query_as::<_, Ticket>(
-        "SELECT * FROM tickets WHERE id = $1 AND event_id = $2 FOR UPDATE"
+    // SELECT ticket FOR UPDATE
+    let ticket_exists: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM tickets WHERE id = $1 FOR UPDATE",
     )
     .bind(ticket_id)
-    .bind(input.event_id)
     .fetch_optional(&mut *tx)
     .await?;
 
-    let ticket = match ticket {
-        Some(t) => t,
-        None => {
-            return Ok(Json(ValidateTicketResponse {
-                status: "INVALID_TICKET".to_string(),
-                message: "Ticket not found for this specific event.".to_string(),
-                ticket_id: Some(ticket_id),
-            }));
-        }
-    };
-
-    if ticket.status == "used" || ticket.scanned_at.is_some() {
-        return Ok(Json(ValidateTicketResponse {
-            status: "TICKET_ALREADY_USED".to_string(),
-            message: format!("Ticket was already scanned!"),
-            ticket_id: Some(ticket_id),
-        }));
-    }
-
-    if ticket.status != "active" && ticket.status != "valid" {
-        return Ok(Json(ValidateTicketResponse {
+    if ticket_exists.is_none() {
+        tx.rollback().await.ok();
+        return Ok(Json(ScanResponse {
             status: "INVALID_TICKET".to_string(),
-            message: format!("Ticket is {}", ticket.status), // cancelled, etc.
-            ticket_id: Some(ticket_id),
-        }));
+            message: "Invalid or forged ticket".to_string(),
+            attendee_name: None,
+        })
+        .into_response());
     }
 
-    // Mark as used
-    sqlx::query("UPDATE tickets SET status = 'used', scanned_at = NOW() WHERE id = $1")
-        .bind(ticket_id)
-        .execute(&mut *tx)
-        .await?;
+    // Check if already scanned
+    let already_scanned: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM scanned_tickets WHERE ticket_id = $1",
+    )
+    .bind(ticket_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if already_scanned.is_some() {
+        tx.rollback().await.ok();
+        return Ok(Json(ScanResponse {
+            status: "TICKET_ALREADY_SCANNED".to_string(),
+            message: "Ticket already scanned".to_string(),
+            attendee_name: None,
+        })
+        .into_response());
+    }
+
+    // Mark ticket as used
+    sqlx::query(
+        "UPDATE tickets SET status = 'used', scanned_at = NOW() WHERE id = $1",
+    )
+    .bind(ticket_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Insert into scanned_tickets
+    sqlx::query(
+        "INSERT INTO scanned_tickets (staff_id, ticket_id, event_id) VALUES ($1, $2, $3)",
+    )
+    .bind(staff.id)
+    .bind(ticket_id)
+    .bind(event_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Update staff counters
+    sqlx::query(
+        r#"UPDATE event_staff
+           SET tickets_scanned = tickets_scanned + 1,
+               last_active_at = NOW(),
+               updated_at = NOW()
+           WHERE id = $1"#,
+    )
+    .bind(staff.id)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
 
-    Ok(Json(ValidateTicketResponse {
+    // Fetch attendee name
+    let attendee_name: Option<String> = sqlx::query_scalar(
+        "SELECT full_name FROM users WHERE id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    Ok(Json(ScanResponse {
         status: "VALID_TICKET".to_string(),
-        message: "Ticket is valid. Entry granted.".to_string(),
-        ticket_id: Some(ticket_id),
+        message: "Entry granted".to_string(),
+        attendee_name,
+    })
+    .into_response())
+}
+
+// ─── Public: GET /api/scanner/:accessToken ───────────────────────────────────
+// Looks up staff by access_token alone (no event_id in path).
+// Returns ScannerInfoResponse including event_id so the frontend can use it.
+
+pub async fn public_scanner_info(
+    State(state): State<AppState>,
+    Path(access_token): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    let staff = sqlx::query_as::<_, EventStaff>(
+        "SELECT * FROM event_staff WHERE access_token = $1",
+    )
+    .bind(access_token)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Scanner not found".to_string()))?;
+
+    if staff.is_revoked {
+        return Err(AppError::Forbidden("Access revoked".to_string()));
+    }
+    if !staff.is_active {
+        return Err(AppError::Forbidden("Access inactive".to_string()));
+    }
+
+    let event_id = staff.event_id;
+
+    let (event_name, event_date): (String, chrono::DateTime<chrono::Utc>) =
+        sqlx::query_as("SELECT title, event_date FROM events WHERE id = $1")
+            .bind(event_id)
+            .fetch_one(&state.db)
+            .await?;
+
+    let daily_scan_count: i64 = sqlx::query_scalar(
+        r#"SELECT COUNT(*) FROM scanned_tickets
+           WHERE staff_id = $1 AND DATE(scanned_at) = CURRENT_DATE"#,
+    )
+    .bind(staff.id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(ScannerInfoResponse {
+        event_id,
+        event_name,
+        event_date,
+        daily_scan_count,
+        staff_name: staff.name,
     }))
 }

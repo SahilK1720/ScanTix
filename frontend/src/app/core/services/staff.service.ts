@@ -1,49 +1,92 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpBackend } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ScanEvent } from './event.service';
-
-export interface AssignStaffRequest {
-    email: String;
-}
 
 export interface EventStaff {
-    id: string;
-    event_id: string;
-    staff_id: string;
-    assigned_by: string;
-    created_at: string;
+  id: string;
+  event_id: string;
+  organizer_id: string;
+  name: string;
+  email: string;
+  phone_number: string;
+  access_token: string;
+  is_active: boolean;
+  is_revoked: boolean;
+  tickets_scanned: number;
+  last_active_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface ValidateTicketRequest {
-    qr_data: string;
-    event_id: string;
+export interface AddStaffRequest {
+  name: string;
+  email: string;
+  phone_number: string;
 }
 
-export interface ValidateTicketResponse {
-    status: 'VALID_TICKET' | 'INVALID_TICKET' | 'TICKET_ALREADY_USED';
-    message: string;
-    ticket_id?: string;
+export interface ScannerInfoResponse {
+  event_id: string;
+  event_name: string;
+  event_date: string;
+  daily_scan_count: number;
+  staff_name: string;
 }
 
-@Injectable({
-    providedIn: 'root'
-})
+export type ScanStatus = 'VALID_TICKET' | 'TICKET_ALREADY_SCANNED' | 'INVALID_TICKET';
+
+export interface ScanResponse {
+  status: ScanStatus;
+  message: string;
+  attendee_name?: string;
+}
+
+@Injectable({ providedIn: 'root' })
 export class StaffService {
-    private apiUrl = `${environment.apiUrl}`;
+  private http = inject(HttpClient);
+  // Bypasses AuthInterceptor — used for public scanner endpoints
+  private rawHttp = new HttpClient(inject(HttpBackend));
 
-    constructor(private http: HttpClient) { }
+  private base = environment.apiUrl;
 
-    assignStaff(eventId: string, email: string): Observable<EventStaff> {
-        return this.http.post<EventStaff>(`${this.apiUrl}/events/${eventId}/staff/assign`, { email });
-    }
+  // ── Organizer methods (go through AuthInterceptor) ──────────────────────
 
-    getAssignedEvents(): Observable<ScanEvent[]> {
-        return this.http.get<ScanEvent[]>(`${this.apiUrl}/staff/events`);
-    }
+  listStaff(eventId: string): Observable<EventStaff[]> {
+    return this.http.get<EventStaff[]>(`${this.base}/organizer/events/${eventId}/staff`);
+  }
 
-    validateTicket(payload: ValidateTicketRequest): Observable<ValidateTicketResponse> {
-        return this.http.post<ValidateTicketResponse>(`${this.apiUrl}/staff/validate`, payload);
-    }
+  addStaff(eventId: string, req: AddStaffRequest): Observable<EventStaff> {
+    return this.http.post<EventStaff>(`${this.base}/organizer/events/${eventId}/staff`, req);
+  }
+
+  deleteStaff(eventId: string, staffId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/organizer/events/${eventId}/staff/${staffId}`);
+  }
+
+  revokeStaff(eventId: string, staffId: string): Observable<EventStaff> {
+    return this.http.patch<EventStaff>(
+      `${this.base}/organizer/events/${eventId}/staff/${staffId}/revoke`,
+      {}
+    );
+  }
+
+  restoreStaff(eventId: string, staffId: string): Observable<EventStaff> {
+    return this.http.patch<EventStaff>(
+      `${this.base}/organizer/events/${eventId}/staff/${staffId}/restore`,
+      {}
+    );
+  }
+
+  // ── Scanner methods (bypass AuthInterceptor via HttpBackend) ─────────────
+
+  getScannerInfo(accessToken: string): Observable<ScannerInfoResponse> {
+    return this.rawHttp.get<ScannerInfoResponse>(`${this.base}/scanner/${accessToken}`);
+  }
+
+  scanTicket(eventId: string, accessToken: string, qrData: string): Observable<ScanResponse> {
+    return this.rawHttp.post<ScanResponse>(
+      `${this.base}/organizer/events/${eventId}/staff/scanner/${accessToken}/scan`,
+      { qr_data: qrData }
+    );
+  }
 }

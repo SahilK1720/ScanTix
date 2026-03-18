@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { interval, Subscription, switchMap, startWith } from 'rxjs';
 import { EventService, EventStats } from '../../../core/services/event.service';
+import { StaffManagementComponent } from '../../staff/staff-management/staff-management.component';
 
 @Component({
   selector: 'app-sales-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, StaffManagementComponent],
   template: `
     <div class="page-container animate-fadeIn">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
@@ -105,6 +106,10 @@ import { EventService, EventStats } from '../../../core/services/event.service';
         <div style="text-align:center;margin-top:24px">
           <a routerLink="/my-events" class="btn btn-secondary">← Back to My Events</a>
         </div>
+
+        <!-- Staff Management -->
+        <h2 style="margin-top:40px;margin-bottom:0">🧑‍💼 <span class="gradient-text">Manage Staff</span></h2>
+        <app-staff-management [eventId]="eventId" />
       }
     </div>
   `,
@@ -121,6 +126,7 @@ import { EventService, EventStats } from '../../../core/services/event.service';
 })
 export class SalesDashboardComponent implements OnInit, OnDestroy {
   stats: EventStats | null = null;
+  eventId: string = '';
   private sub?: Subscription;
 
   constructor(
@@ -131,6 +137,7 @@ export class SalesDashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id')!;
+    this.eventId = id;
     this.sub = interval(5000).pipe(
       startWith(0),
       switchMap(() => this.eventService.getEventStats(id))

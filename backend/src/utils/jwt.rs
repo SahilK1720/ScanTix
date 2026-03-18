@@ -14,7 +14,7 @@ pub struct Claims {
 
 pub fn create_token(user_id: Uuid, email: &str, role: &str, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now();
-    let expires = now + Duration::hours(24);
+    let expires = now + Duration::days(7);
 
     let claims = Claims {
         sub: user_id,

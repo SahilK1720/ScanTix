@@ -1,6 +1,6 @@
 use axum::{
     middleware,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 
@@ -17,7 +17,21 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/events/:id", get(handlers::events::get_event))
         .route("/api/venues", get(handlers::venues::list_venues))
         .route("/api/venues/:id/seats", get(handlers::venues::get_venue_seats))
-        .route("/api/events/:id/seats", get(handlers::seats::get_event_seats));
+        .route("/api/events/:id/seats", get(handlers::seats::get_event_seats))
+        // Scanner endpoints (public — no auth middleware)
+        .route(
+            "/api/organizer/events/:eventId/staff/scanner/:accessToken",
+            get(handlers::staff::scanner_info),
+        )
+        .route(
+            "/api/organizer/events/:eventId/staff/scanner/:accessToken/scan",
+            post(handlers::staff::scanner_scan),
+        )
+        // Public scanner lookup by token only (no eventId in path)
+        .route(
+            "/api/scanner/:accessToken",
+            get(handlers::staff::public_scanner_info),
+        );
 
     // Protected routes (auth required)
     let protected_routes = Router::new()
@@ -45,10 +59,23 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/tickets/:id/cancel", post(handlers::tickets::cancel_ticket))
             .route("/api/tickets/:id/refund-status", get(handlers::tickets::sync_refund_status))
         .route("/api/analytics/sales/:event_id", get(handlers::analytics::sales_stream))
-        // Staff
-        .route("/api/events/:id/staff/assign", post(handlers::staff::assign_staff))
-        .route("/api/staff/events", get(handlers::staff::get_assigned_events))
-        .route("/api/staff/validate", post(handlers::staff::validate_ticket))
+        // Staff management (organizer, JWT-protected)
+        .route(
+            "/api/organizer/events/:eventId/staff",
+            get(handlers::staff::list_staff).post(handlers::staff::add_staff),
+        )
+        .route(
+            "/api/organizer/events/:eventId/staff/:staffId",
+            delete(handlers::staff::delete_staff),
+        )
+        .route(
+            "/api/organizer/events/:eventId/staff/:staffId/revoke",
+            patch(handlers::staff::revoke_staff),
+        )
+        .route(
+            "/api/organizer/events/:eventId/staff/:staffId/restore",
+            patch(handlers::staff::restore_staff),
+        )
         // Razorpay Payment
         .route("/api/payment/create-order", post(handlers::payment::create_razorpay_order))
         .route("/api/payment/verify", post(handlers::payment::verify_and_book))

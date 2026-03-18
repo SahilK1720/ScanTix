@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { StaffService, ValidateTicketResponse } from '../../../core/services/staff.service';
+import { StaffService, ScanResponse } from '../../../core/services/staff.service';
 import { EventService, ScanEvent } from '../../../core/services/event.service';
 
 @Component({
@@ -130,7 +130,7 @@ export class StaffScannerComponent implements OnInit {
     event?: ScanEvent;
     qrInput: string = '';
     validating = false;
-    result: ValidateTicketResponse | null = null;
+    result: ScanResponse | null = null;
 
     constructor(
         private route: ActivatedRoute,
@@ -147,22 +147,15 @@ export class StaffScannerComponent implements OnInit {
         if (!this.qrInput.trim()) return;
 
         this.validating = true;
-        this.staffService.validateTicket({
-            qr_data: this.qrInput.trim(),
-            event_id: this.eventId
-        }).subscribe({
-            next: (res) => {
-                this.result = res;
-                this.validating = false;
-            },
-            error: (err) => {
-                this.result = {
-                    status: 'INVALID_TICKET',
-                    message: err.error?.message || 'Server error'
-                };
-                this.validating = false;
-            }
-        });
+        // This component is legacy — real scanning now happens via /scan/:accessToken
+        // For now just show invalid since we don't have an eventId-based scan endpoint here
+        setTimeout(() => {
+            this.result = {
+                status: 'INVALID_TICKET',
+                message: 'Please use your personal scanner link sent via email.'
+            };
+            this.validating = false;
+        }, 500);
     }
 
     reset() {

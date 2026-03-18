@@ -7,7 +7,6 @@ import { TicketService } from '../../../core/services/ticket.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { SeatMapComponent } from '../../../shared/seat-map/seat-map.component';
 import { EventSeat, SeatService } from '../../../core/services/seat.service';
-import { StaffService } from '../../../core/services/staff.service';
 import { environment } from '../../../../environments/environment';
 import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
 import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-modal/payment-modal.component';
@@ -226,27 +225,16 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
               </div>
             }
 
-          <!-- ── Manager Staff Selection (Organizer Only) ────────────────────── -->
+          <!-- ── Manage Staff (Organizer Only) ────────────────────────────── -->
           @if (event.organizer_id === auth.currentUser?.id) {
             <div class="glass-card" style="padding:24px;margin-top:32px;border-color:rgba(16,185,129,0.2)">
-              <h3 style="margin-bottom:16px">💂 Manage Staff</h3>
-              <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px">
-                Assign a staff member by email to allow them to scan tickets for this event.
+              <h3 style="margin-bottom:8px">💂 Manage Staff</h3>
+              <p style="color:var(--text-secondary);font-size:0.9rem">
+                Staff management has moved to the event analytics page.
               </p>
-              
-              <div style="display:flex;gap:12px">
-                <div class="form-group" style="flex:1;margin-bottom:0">
-                  <input type="email" class="form-control" [(ngModel)]="staffEmail" placeholder="Enter staff email...">
-                </div>
-                <button class="btn btn-primary" (click)="assignStaff()" [disabled]="!staffEmail || assigningStaff">
-                  @if (assigningStaff) {
-                    <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
-                  } @else { Assign Staff }
-                </button>
-              </div>
-
-              @if (staffSuccess) { <div class="alert alert-success" style="margin-top:16px">{{ staffSuccess }}</div> }
-              @if (staffError) { <div class="alert alert-danger" style="margin-top:16px">{{ staffError }}</div> }
+              <a [routerLink]="['/analytics', event.id]" class="btn btn-secondary" style="margin-top:12px">
+                Go to Analytics & Staff Management →
+              </a>
             </div>
           }
         </div>
@@ -313,20 +301,17 @@ export class EventDetailComponent implements OnInit, OnDestroy {
   purchaseSuccess = '';
   purchaseError = '';
 
-  // Staff management
+  // Staff management (fields kept for template compatibility)
   staffEmail = '';
   assigningStaff = false;
   staffSuccess = '';
-  staffError = '';
-
-  constructor(
+  staffError = '';  constructor(
     private route: ActivatedRoute,
     private router: Router,
     private eventService: EventService,
     private ticketService: TicketService,
     private seatService: SeatService,
     public auth: AuthService,
-    private staffService: StaffService,
     private cdr: ChangeDetectorRef,
     private sanitizer: DomSanitizer
   ) { }
@@ -454,28 +439,6 @@ export class EventDetailComponent implements OnInit, OnDestroy {
     };
     this.showPaymentModal = true;
     this.cdr.detectChanges();
-  }
-
-  assignStaff() {
-    if (!this.event || !this.staffEmail) return;
-
-    this.assigningStaff = true;
-    this.staffError = '';
-    this.staffSuccess = '';
-
-    this.staffService.assignStaff(this.event.id, this.staffEmail).subscribe({
-      next: () => {
-        this.assigningStaff = false;
-        this.staffSuccess = 'Staff assigned successfully!';
-        this.staffEmail = '';
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        this.assigningStaff = false;
-        this.staffError = err.error?.message || 'Failed to assign staff';
-        this.cdr.detectChanges();
-      }
-    });
   }
 
   calculateTotal(): number {

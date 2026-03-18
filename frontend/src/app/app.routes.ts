@@ -54,14 +54,13 @@ export const routes: Routes = [
         canActivate: [authGuard]
     },
     {
-        path: 'staff',
-        loadComponent: () => import('./features/staff/staff-dashboard/staff-dashboard.component').then(m => m.StaffDashboardComponent),
-        canActivate: [authGuard]
+        path: 'scan/:slug/:accessToken',
+        loadComponent: () => import('./features/scanner/scanner-page/scanner-page.component').then(m => m.ScannerPageComponent)
     },
     {
-        path: 'staff/scan/:eventId',
-        loadComponent: () => import('./features/staff/scanner/scanner.component').then(m => m.StaffScannerComponent),
-        canActivate: [authGuard]
+        // Legacy: /scan/:accessToken (no slug) — still works
+        path: 'scan/:accessToken',
+        loadComponent: () => import('./features/scanner/scanner-page/scanner-page.component').then(m => m.ScannerPageComponent)
     },
     {
         path: '**',

@@ -120,14 +120,7 @@ export class StaffDashboardComponent implements OnInit {
   constructor(private staffService: StaffService) { }
 
   ngOnInit() {
-    this.staffService.getAssignedEvents().subscribe({
-      next: (events) => {
-        this.events = events;
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-      }
-    });
+    // Staff no longer have accounts — scanning is done via personal token links sent by email.
+    this.loading = false;
   }
 }
