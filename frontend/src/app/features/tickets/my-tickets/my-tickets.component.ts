@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { TicketService, Ticket, TicketWithQr, CancellationPreview } from '../../../core/services/ticket.service';
@@ -406,7 +406,7 @@ import { environment } from '../../../../environments/environment';
     }
   `]
 })
-export class MyTicketsComponent implements OnInit {
+export class MyTicketsComponent implements OnInit, OnDestroy {
   tickets: Ticket[] = [];
   selectedTicket: Ticket | null = null;
   qrData: TicketWithQr | null = null;
@@ -416,6 +416,7 @@ export class MyTicketsComponent implements OnInit {
   cancellationPreview: CancellationPreview | null = null;
   cancelLoading = false;
   cancelError = '';
+  private statusPollInterval: any;
 
   constructor(
     private ticketService: TicketService,
@@ -445,12 +446,66 @@ export class MyTicketsComponent implements OnInit {
     this.qrLoading = true;
     this.cdr.detectChanges();
     this.ticketService.getTicketQr(ticket.id).subscribe({
-      next: (data) => { this.qrData = data; this.qrLoading = false; this.cdr.detectChanges(); },
+      next: (data) => { 
+        this.qrData = data; 
+        this.selectedTicket = { ...this.selectedTicket!, status: data.ticket.status, scanned_at: data.ticket.scanned_at };
+        this.qrLoading = false; 
+        this.cdr.detectChanges(); 
+        
+        // Start polling if ticket is active
+        this.startStatusPolling();
+      },
       error: () => { this.qrLoading = false; this.cdr.detectChanges(); }
     });
   }
 
-  closeModal() { this.selectedTicket = null; this.qrData = null; }
+  private startStatusPolling() {
+    this.stopStatusPolling();
+    // Only poll if the ticket is still active or valid
+    if (this.selectedTicket && (this.selectedTicket.status === 'active' || this.selectedTicket.status === 'valid')) {
+      this.statusPollInterval = setInterval(() => {
+        if (!this.selectedTicket) {
+          this.stopStatusPolling();
+          return;
+        }
+        this.ticketService.getTicketQr(this.selectedTicket.id).subscribe({
+          next: (data) => {
+            if (this.selectedTicket && (this.selectedTicket.status !== data.ticket.status)) {
+              this.selectedTicket = { ...this.selectedTicket, status: data.ticket.status, scanned_at: data.ticket.scanned_at };
+              
+              // Also update the ticket in the main list
+              const idx = this.tickets.findIndex(t => t.id === this.selectedTicket!.id);
+              if (idx >= 0) {
+                this.tickets[idx] = { ...this.tickets[idx], status: data.ticket.status, scanned_at: data.ticket.scanned_at };
+              }
+              
+              this.cdr.detectChanges();
+              if (data.ticket.status === 'used' || data.ticket.status === 'cancelled') {
+                this.stopStatusPolling();
+              }
+            }
+          }
+        });
+      }, 3000); // Poll every 3 seconds
+    }
+  }
+
+  private stopStatusPolling() {
+    if (this.statusPollInterval) {
+      clearInterval(this.statusPollInterval);
+      this.statusPollInterval = null;
+    }
+  }
+
+  closeModal() { 
+    this.selectedTicket = null; 
+    this.qrData = null; 
+    this.stopStatusPolling();
+  }
+
+  ngOnDestroy() {
+    this.stopStatusPolling();
+  }
 
   openCancelModal(ticket: Ticket, event: MouseEvent) {
     event.stopPropagation();
