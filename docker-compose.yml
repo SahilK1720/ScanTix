@@ -49,6 +49,8 @@ services:
       RUST_LOG: info
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +71,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:
 
 networks:
   default:
