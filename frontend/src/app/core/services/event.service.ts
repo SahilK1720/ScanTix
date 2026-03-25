@@ -74,6 +74,18 @@ export interface EventStats {
     remaining: number;
     revenue: string;
     occupancy_pct: number;
+    gross_sales: string;
+    platform_commission: string;
+    gateway_charges: string;
+    net_earnings: string;
+    avg_per_ticket: string;
+    potential_revenue: string;
+    vip_revenue: string;
+    regular_revenue: string;
+    vip_sold: number;
+    vip_remaining: number;
+    regular_sold: number;
+    regular_remaining: number;
 }
 
 @Injectable({ providedIn: 'root' })

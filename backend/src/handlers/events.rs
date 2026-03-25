@@ -64,12 +64,87 @@ pub async fn get_event_stats(
         .ok_or_else(|| AppError::NotFound("Event not found".to_string()))?;
 
     let remaining = event.max_tickets - event.tickets_sold;
-    let revenue = event.ticket_price * rust_decimal::Decimal::from(event.tickets_sold);
     let occupancy_pct = if event.max_tickets > 0 {
         (event.tickets_sold as f64 / event.max_tickets as f64) * 100.0
     } else {
         0.0
     };
+
+    // Calculate revenue from paid/confirmed orders
+    let gross_sales: Option<rust_decimal::Decimal> = sqlx::query_scalar!(
+        "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE event_id = $1 AND (status = 'paid' OR status = 'confirmed')",
+        id
+    )
+    .fetch_one(&state.db)
+    .await?;
+    let gross_sales = gross_sales.unwrap_or(rust_decimal::Decimal::ZERO);
+
+    // Platform commission is 2% added on top for ScanTix.
+    let platform_commission = gross_sales * rust_decimal::Decimal::from_str_exact("0.02").unwrap();
+    let gateway_charges = rust_decimal::Decimal::ZERO;
+    
+    // Net earnings is gross minus platform commission.
+    let net_earnings = gross_sales - platform_commission;
+
+    let avg_per_ticket = if event.tickets_sold > 0 {
+        gross_sales / rust_decimal::Decimal::from(event.tickets_sold)
+    } else {
+        rust_decimal::Decimal::ZERO
+    };
+
+    let potential_revenue = event.ticket_price * rust_decimal::Decimal::from(event.max_tickets);
+
+    // Calculate VIP vs Regular from tickets table instead of orders to handle "mixed" orders
+    let ticket_counts = sqlx::query!(
+        "SELECT ticket_type, COUNT(*) as count FROM tickets WHERE event_id = $1 AND status != 'cancelled' GROUP BY ticket_type",
+        id
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut vip_sold = 0;
+    let mut regular_sold = 0;
+
+    for tc in ticket_counts {
+        let t_type = tc.ticket_type.to_lowercase();
+        let count = tc.count.unwrap_or(0);
+        if t_type == "vip" {
+            vip_sold += count;
+        } else if t_type == "standard" || t_type == "regular" {
+            regular_sold += count;
+        }
+    }
+
+    let vip_revenue = event.vip_price.unwrap_or(rust_decimal::Decimal::ZERO) * rust_decimal::Decimal::from(vip_sold);
+    let regular_revenue = event.ticket_price * rust_decimal::Decimal::from(regular_sold);
+
+    let mut vip_remaining = -1;
+    let mut regular_remaining = -1;
+
+    if event.seat_map_enabled {
+        let available_seats = sqlx::query!(
+            "SELECT row_label, COUNT(*) as count FROM event_seats WHERE event_id = $1 AND status = 'available' GROUP BY row_label",
+            id
+        )
+        .fetch_all(&state.db)
+        .await?;
+
+        vip_remaining = 0;
+        regular_remaining = 0;
+
+        for stat in available_seats {
+            let count = stat.count.unwrap_or(0) as i32;
+            if stat.row_label == "A" || stat.row_label == "B" {
+                vip_remaining += count;
+            } else {
+                regular_remaining += count;
+            }
+        }
+    } else {
+        // For general admission events, VIP and Regular pool is technically shared from `remaining`.
+        vip_remaining = remaining;
+        regular_remaining = remaining;
+    }
 
     Ok(Json(EventStats {
         event_id: event.id,
@@ -77,8 +152,20 @@ pub async fn get_event_stats(
         tickets_sold: event.tickets_sold,
         max_tickets: event.max_tickets,
         remaining,
-        revenue,
+        revenue: gross_sales,
         occupancy_pct,
+        gross_sales,
+        platform_commission,
+        gateway_charges,
+        net_earnings,
+        avg_per_ticket,
+        potential_revenue,
+        vip_revenue,
+        regular_revenue,
+        vip_sold: vip_sold as i32,
+        vip_remaining,
+        regular_sold: regular_sold as i32,
+        regular_remaining,
     }))
 }
 

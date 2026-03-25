@@ -25,19 +25,19 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
         <form #eventForm="ngForm" (ngSubmit)="onSubmit()">
           <div class="form-group">
             <label>Event Title *</label>
-            <input class="form-control" [(ngModel)]="title" name="title" placeholder="My Amazing Event" required>
+            <input class="form-control" [(ngModel)]="title" name="title" placeholder="e.g. TechX Summit, Sufi Under the Stars" required>
           </div>
 
           <div class="form-group">
             <label>Description *</label>
             <textarea class="form-control" [(ngModel)]="description" name="description"
-                      placeholder="Tell people what your event is about..." rows="4" required></textarea>
+                      placeholder="Tell attendees what makes this event special — vibe, experience, highlights, and why they should come." rows="4" required></textarea>
           </div>
 
           <div class="form-group" style="position:relative">
             <label>📍 Location *</label>
             <input class="form-control" [(ngModel)]="location" name="location"
-                   placeholder="e.g. Madison Square Garden, New York" required
+                   placeholder="e.g. Phoenix Marketcity, Pune • JW Marriott, Mumbai • Open Air Arena, Delhi" required
                    (ngModelChange)="onLocationInput($event)" autocomplete="off">
             
             @if (isSearchingLocation) {

@@ -27,11 +27,21 @@ pub async fn validate_ticket(
         }
     };
 
-    // Look up ticket in database
-    let ticket = sqlx::query_as::<_, Ticket>("SELECT * FROM tickets WHERE id = $1")
-        .bind(ticket_id)
-        .fetch_optional(&state.db)
-        .await?;
+    // Look up ticket in database and compute dynamic expiration status
+    let ticket = sqlx::query_as::<_, Ticket>(
+        r#"
+        SELECT 
+            t.id, t.order_id, t.event_id, t.seat_id, t.user_id, t.qr_code_data, t.ticket_type,
+            CASE WHEN t.status IN ('active', 'valid') AND e.event_end_time < NOW() THEN 'expired' ELSE t.status END as status,
+            t.refund_status, t.scanned_at, t.created_at
+        FROM tickets t
+        LEFT JOIN events e ON t.event_id = e.id
+        WHERE t.id = $1
+        "#
+    )
+    .bind(ticket_id)
+    .fetch_optional(&state.db)
+    .await?;
 
     let ticket = match ticket {
         Some(t) => t,
@@ -61,6 +71,15 @@ pub async fn validate_ticket(
             return Ok(Json(ValidateResponse {
                 valid: false,
                 message: format!("Ticket has been {}", ticket.status),
+                ticket_id: Some(ticket.id),
+                event_title: None,
+                attendee_name: None,
+            }));
+        }
+        "expired" => {
+            return Ok(Json(ValidateResponse {
+                valid: false,
+                message: "Ticket is expired (event has ended)".to_string(),
                 ticket_id: Some(ticket.id),
                 event_title: None,
                 attendee_name: None,

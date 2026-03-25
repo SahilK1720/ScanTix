@@ -47,57 +47,69 @@ import { StaffManagementComponent } from '../../staff/staff-management/staff-man
           </div>
         </div>
 
-        <!-- Occupancy Bar -->
-        <div class="glass-card" style="padding:32px;margin-bottom:24px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
-            <h3>Capacity &amp; Occupancy</h3>
-            <span style="font-weight:700;font-size:1.1rem">{{ stats.tickets_sold }} / {{ stats.max_tickets }}</span>
-          </div>
-          <div class="cap-bar">
-            <div class="cap-fill"
-                 [style.width.%]="stats.occupancy_pct"
-                 [style.background]="stats.occupancy_pct > 90 ? 'linear-gradient(90deg,#ef4444,#dc2626)' : stats.occupancy_pct > 70 ? 'linear-gradient(90deg,#f59e0b,#d97706)' : 'var(--accent-gradient)'">
-            </div>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:0.82rem;color:var(--text-muted)">
-            <span>0% Empty</span>
-            <span [style.color]="stats.occupancy_pct > 90 ? 'var(--danger)' : 'var(--success)'">
-              {{ stats.occupancy_pct > 90 ? '🔥 Almost Sold Out!' : stats.occupancy_pct > 70 ? '⚡ Selling Fast' : '✅ Good Availability' }}
-            </span>
-            <span>100% Full</span>
-          </div>
-        </div>
+
 
         <!-- Visual breakdown -->
         <div class="grid-2">
           <div class="glass-card" style="padding:24px">
             <h3 style="margin-bottom:20px">Ticket Breakdown</h3>
-            <div class="breakdown-row">
-              <span style="color:var(--success)">🎟️ Sold</span>
-              <div class="breakdown-bar"><div class="bd-fill bd-sold" [style.width.%]="stats.occupancy_pct"></div></div>
-              <span style="font-weight:600">{{ stats.tickets_sold }}</span>
-            </div>
-            <div class="breakdown-row">
-              <span style="color:var(--text-muted)">⬜ Remaining</span>
-              <div class="breakdown-bar"><div class="bd-fill bd-rem" [style.width.%]="100 - stats.occupancy_pct"></div></div>
-              <span style="font-weight:600">{{ stats.remaining }}</span>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="breakdown-row" style="margin-bottom:0">
+                <span style="color:#d946ef;font-weight:600">⭐ VIP Sold</span>
+                <span style="font-weight:600;margin-left:auto">{{ stats.vip_sold }}</span>
+              </div>
+              <div class="breakdown-row" style="margin-bottom:0">
+                <span style="color:var(--text-muted)">⭐ VIP Remaining</span>
+                <span style="font-weight:600;margin-left:auto">{{ stats.vip_remaining >= 0 ? stats.vip_remaining : 'N/A' }}</span>
+              </div>
+              
+              <div style="height:1px;background:var(--border-glass);margin:8px 0"></div>
+              
+              <div class="breakdown-row" style="margin-bottom:0">
+                <span style="color:var(--success);font-weight:600">🎫 Regular Sold</span>
+                <span style="font-weight:600;margin-left:auto">{{ stats.regular_sold }}</span>
+              </div>
+              <div class="breakdown-row" style="margin-bottom:0">
+                <span style="color:var(--text-muted)">🎫 Regular Remaining</span>
+                <span style="font-weight:600;margin-left:auto">{{ stats.regular_remaining >= 0 ? stats.regular_remaining : 'N/A' }}</span>
+              </div>
             </div>
           </div>
 
           <div class="glass-card" style="padding:24px">
             <h3 style="margin-bottom:20px">Revenue Summary</h3>
-            <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-direction:column;gap:12px;font-size:0.95rem">
               <div style="display:flex;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--border-glass)">
-                <span style="color:var(--text-secondary)">Gross Revenue</span>
-                <span style="font-size:1.5rem;font-weight:700;color:var(--success)">&#8377;{{ stats.revenue }}</span>
+                <span style="color:var(--text-secondary)">Gross Sales</span>
+                <span style="font-size:1.2rem;font-weight:700;color:var(--success)">&#8377;{{ stats.gross_sales }}</span>
               </div>
               <div style="display:flex;justify-content:space-between">
-                <span style="color:var(--text-secondary)">Avg. per Ticket</span>
-                <span style="font-weight:600">&#8377;{{ avgPerTicket(stats) }}</span>
+                <span style="color:var(--text-secondary)">Platform Commission</span>
+                <span style="font-weight:600;color:var(--danger)">-&#8377;{{ stats.platform_commission }}</span>
+              </div>
+              
+              <div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px dashed var(--border-glass);border-bottom:1px dashed var(--border-glass)">
+                <span style="font-weight:600;color:var(--text-primary)">Net Earnings</span>
+                <span style="font-size:1.2rem;font-weight:700;color:#c084fc">&#8377;{{ stats.net_earnings }}</span>
+              </div>
+              
+              <!-- Additional Stats -->
+              <div style="display:flex;justify-content:space-between;margin-top:4px">
+                <span style="color:var(--text-secondary);font-size:0.85rem">Avg. per Ticket</span>
+                <span style="font-weight:600;font-size:0.85rem">&#8377;{{ stats.avg_per_ticket }}</span>
               </div>
               <div style="display:flex;justify-content:space-between">
-                <span style="color:var(--text-secondary)">Potential (100%)</span>
-                <span style="font-weight:600;color:var(--text-muted)">&#8377;{{ potentialRevenue(stats) }}</span>
+                <span style="color:var(--text-secondary);font-size:0.85rem">Potential Revenue</span>
+                <span style="font-weight:600;font-size:0.85rem;color:var(--text-muted)">&#8377;{{ stats.potential_revenue }}</span>
+              </div>
+              
+              <div style="display:flex;justify-content:space-between;margin-top:8px">
+                <span style="color:var(--text-secondary);font-size:0.85rem">VIP Revenue</span>
+                <span style="font-weight:600;font-size:0.85rem;color:var(--info)">&#8377;{{ stats.vip_revenue }}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span style="color:var(--text-secondary);font-size:0.85rem">Regular Revenue</span>
+                <span style="font-weight:600;font-size:0.85rem;color:var(--info)">&#8377;{{ stats.regular_revenue }}</span>
               </div>
             </div>
           </div>
@@ -153,13 +165,7 @@ export class SalesDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  avgPerTicket(s: EventStats): string {
-    return s.tickets_sold > 0 ? (parseFloat(s.revenue) / s.tickets_sold).toFixed(2) : '0.00';
-  }
 
-  potentialRevenue(s: EventStats): string {
-    return (parseFloat(s.revenue) / (s.occupancy_pct / 100 || 1)).toFixed(2);
-  }
 
   ngOnDestroy() { this.sub?.unsubscribe(); }
 }

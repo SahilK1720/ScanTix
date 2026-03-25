@@ -256,7 +256,9 @@ pub async fn my_tickets(
     let tickets = sqlx::query_as::<_, Ticket>(
         r#"
         SELECT 
-            t.*,
+            t.id, t.order_id, t.event_id, t.seat_id, t.user_id, t.qr_code_data, t.ticket_type,
+            CASE WHEN t.status IN ('active', 'valid') AND e.event_end_time < NOW() THEN 'expired' ELSE t.status END as status,
+            t.refund_status, t.scanned_at, t.created_at,
             e.title as event_title,
             e.event_date as event_date,
             e.refund_policy as event_refund_policy,
@@ -310,7 +312,9 @@ pub async fn get_ticket_qr(
     let data = sqlx::query_as::<_, TicketWithEventData>(
         r#"
         SELECT 
-            t.*,
+            t.id, t.order_id, t.event_id, t.seat_id, t.user_id, t.qr_code_data, t.ticket_type,
+            CASE WHEN t.status IN ('active', 'valid') AND e.event_end_time < NOW() THEN 'expired' ELSE t.status END as status,
+            t.refund_status, t.scanned_at, t.created_at,
             e.title as event_title,
             e.image_urls as event_images,
             e.event_date as event_date,
