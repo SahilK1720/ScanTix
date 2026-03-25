@@ -71,10 +71,10 @@ pub async fn get_event_stats(
     };
 
     // Calculate revenue from paid/confirmed orders
-    let gross_sales: Option<rust_decimal::Decimal> = sqlx::query_scalar!(
-        "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE event_id = $1 AND (status = 'paid' OR status = 'confirmed')",
-        id
+    let gross_sales: Option<rust_decimal::Decimal> = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE event_id = $1 AND (status = 'paid' OR status = 'confirmed')"
     )
+    .bind(id)
     .fetch_one(&state.db)
     .await?;
     let gross_sales = gross_sales.unwrap_or(rust_decimal::Decimal::ZERO);
@@ -95,10 +95,16 @@ pub async fn get_event_stats(
     let potential_revenue = event.ticket_price * rust_decimal::Decimal::from(event.max_tickets);
 
     // Calculate VIP vs Regular from tickets table instead of orders to handle "mixed" orders
-    let ticket_counts = sqlx::query!(
-        "SELECT ticket_type, COUNT(*) as count FROM tickets WHERE event_id = $1 AND status != 'cancelled' GROUP BY ticket_type",
-        id
+    #[derive(sqlx::FromRow)]
+    struct TicketCountRow {
+        ticket_type: String,
+        count: i64,
+    }
+
+    let ticket_counts = sqlx::query_as::<_, TicketCountRow>(
+        "SELECT ticket_type, COUNT(*) as count FROM tickets WHERE event_id = $1 AND status != 'cancelled' GROUP BY ticket_type"
     )
+    .bind(id)
     .fetch_all(&state.db)
     .await?;
 
@@ -107,7 +113,7 @@ pub async fn get_event_stats(
 
     for tc in ticket_counts {
         let t_type = tc.ticket_type.to_lowercase();
-        let count = tc.count.unwrap_or(0);
+        let count = tc.count;
         if t_type == "vip" {
             vip_sold += count;
         } else if t_type == "standard" || t_type == "regular" {
@@ -122,10 +128,16 @@ pub async fn get_event_stats(
     let mut regular_remaining = -1;
 
     if event.seat_map_enabled {
-        let available_seats = sqlx::query!(
-            "SELECT row_label, COUNT(*) as count FROM event_seats WHERE event_id = $1 AND status = 'available' GROUP BY row_label",
-            id
+        #[derive(sqlx::FromRow)]
+        struct AvailableSeatRow {
+            row_label: String,
+            count: i64,
+        }
+
+        let available_seats = sqlx::query_as::<_, AvailableSeatRow>(
+            "SELECT row_label, COUNT(*) as count FROM event_seats WHERE event_id = $1 AND status = 'available' GROUP BY row_label"
         )
+        .bind(id)
         .fetch_all(&state.db)
         .await?;
 
@@ -133,7 +145,7 @@ pub async fn get_event_stats(
         regular_remaining = 0;
 
         for stat in available_seats {
-            let count = stat.count.unwrap_or(0) as i32;
+            let count = stat.count as i32;
             if stat.row_label == "A" || stat.row_label == "B" {
                 vip_remaining += count;
             } else {
