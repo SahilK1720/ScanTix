@@ -261,16 +261,24 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
               </div>
             }
 
-          <!-- ── Manage Staff (Organizer Only) ────────────────────────────── -->
-          @if (event.organizer_id === auth.currentUser?.id) {
-            <div class="glass-card" style="padding:24px;margin-top:32px;border-color:rgba(16,185,129,0.2)">
-              <h3 style="margin-bottom:8px">💂 Manage Staff</h3>
-              <p style="color:var(--text-secondary);font-size:0.9rem">
-                Staff management has moved to the event analytics page.
-              </p>
-              <a [routerLink]="['/analytics', event.id]" class="btn btn-secondary" style="margin-top:12px">
-                Go to Analytics & Staff Management →
-              </a>
+          <!-- ── Event Actions (Organizer Only) ────────────────────────── -->
+          @if (event.organizer_id === auth.currentUser?.id && event.status !== 'cancelled') {
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:32px">
+              <div class="glass-card" style="padding:24px;border-color:rgba(16,185,129,0.2)">
+                <h3 style="margin-bottom:8px">💂 Staff & Analytics</h3>
+                <p style="color:var(--text-secondary);font-size:0.9rem">Manage your event staff and view detailed sales analytics.</p>
+                <a [routerLink]="['/analytics', event.id]" class="btn btn-secondary" style="margin-top:12px;width:100%">
+                  Go to Analytics →
+                </a>
+              </div>
+              <div class="glass-card" style="padding:24px;border-color:rgba(239,68,68,0.2)">
+                <h3 style="margin-bottom:8px">⚙️ Event Management</h3>
+                <p style="color:var(--text-secondary);font-size:0.9rem">Update event details or cancel if needed. Cancellation fees may apply.</p>
+                <div style="display:flex;gap:12px;margin-top:12px">
+                  <a [routerLink]="['/events', event.id, 'edit']" class="btn btn-secondary" style="flex:1">Edit Event</a>
+                  <button class="btn btn-danger" style="flex:1" (click)="openCancelModal()">Cancel Event</button>
+                </div>
+              </div>
             </div>
           }
         </div>
@@ -297,6 +305,50 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
                   style="background:linear-gradient(135deg,#ef4444,#b91c1c);border:none">
             Choose Other Seats
           </button>
+        </div>
+      </div>
+    }
+
+    <!-- Cancellation Modal (Organizer Only) -->
+    @if (showCancelModal && event) {
+      <div class="modal-backdrop" (click)="closeCancelModal()" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:20px;padding-top:8vh">
+        <div class="modal-content glass-card animate-scaleIn" (click)="$event.stopPropagation()" style="width:100%;max-width:500px;padding:32px;position:relative">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+            <h2 style="margin:0;font-size:1.5rem">🚫 Cancel Event</h2>
+            <button (click)="closeCancelModal()" style="background:none;border:none;color:var(--text-muted);font-size:1.5rem;cursor:pointer">✕</button>
+          </div>
+          
+          <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);padding:20px;border-radius:12px;color:#fca5a5">
+            <p><strong>Are you sure you want to cancel "{{ event.title }}"?</strong></p>
+            <ul style="margin:12px 0;padding-left:20px;font-size:0.9rem">
+              @if (event.tickets_sold > 0) {
+                <li>All {{ event.tickets_sold }} attendees will receive a <strong>FULL REFUND</strong>.</li>
+                <li>A <strong>15% cancellation fee</strong> (₹{{ (totalRevenue() * 0.15).toFixed(2) }}) will be charged.</li>
+              } @else {
+                <li>No tickets have been sold yet. No penalty will be charged.</li>
+              }
+              <li>This action <strong>cannot be undone</strong>.</li>
+            </ul>
+          </div>
+
+          <div class="form-group" style="margin-top:20px">
+            <label>Reason for Cancellation (Optional)</label>
+            <textarea class="form-control" [(ngModel)]="cancelReason" placeholder="e.g. Unforeseen circumstances, venue issue..." rows="3"></textarea>
+          </div>
+
+          @if (cancelError) {
+            <div style="background:rgba(239,68,68,0.15);color:#fca5a5;padding:12px;border-radius:8px;font-size:0.85rem;border:1px solid var(--danger);margin-top:16px">
+              {{ cancelError }}
+            </div>
+          }
+
+          <div style="display:flex;gap:12px;margin-top:32px;justify-content:flex-end">
+            <button class="btn btn-secondary" (click)="closeCancelModal()" [disabled]="cancelling">Go Back</button>
+            <button class="btn btn-danger" (click)="confirmCancellation()" [disabled]="cancelling">
+              @if (cancelling) { <span class="spinner-sm"></span> Processing... }
+              @else { 🚨 Confirm Cancellation }
+            </button>
+          </div>
         </div>
       </div>
     }
@@ -359,6 +411,12 @@ export class EventDetailComponent implements OnInit, OnDestroy {
   staffSuccess = '';
   staffError = '';
   heldSeatsMessage = '';
+
+  // Cancellation (Organizer Only)
+  showCancelModal = false;
+  cancelReason = '';
+  cancelling = false;
+  cancelError = '';
 
   constructor(
     private route: ActivatedRoute,
@@ -527,5 +585,43 @@ export class EventDetailComponent implements OnInit, OnDestroy {
 
   getSafeStyle(path: string): SafeStyle {
     return this.sanitizer.bypassSecurityTrustStyle(`background-image: url('${this.getImageUrl(path)}')`);
+  }
+
+  // Cancellation Methods
+  openCancelModal() {
+    this.showCancelModal = true;
+    this.cancelReason = '';
+    this.cancelError = '';
+    this.cdr.detectChanges();
+  }
+
+  closeCancelModal() {
+    this.showCancelModal = false;
+    this.cdr.detectChanges();
+  }
+
+  totalRevenue() {
+    if (!this.event) return 0;
+    return parseFloat(this.event.ticket_price) * this.event.tickets_sold;
+  }
+
+  confirmCancellation() {
+    if (!this.event) return;
+    this.cancelling = true;
+    this.cancelError = '';
+    
+    this.eventService.cancelEvent(this.event.id, this.cancelReason).subscribe({
+      next: () => {
+        this.cancelling = false;
+        this.showCancelModal = false;
+        if (this.event) this.event.status = 'cancelled';
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.cancelling = false;
+        this.cancelError = err.error?.message || 'Failed to cancel event. Please try again.';
+        this.cdr.detectChanges();
+      }
+    });
   }
 }

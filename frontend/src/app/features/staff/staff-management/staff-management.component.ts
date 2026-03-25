@@ -44,21 +44,21 @@ export function timeAgo(dateStr: string | null): string {
       <form [formGroup]="form" (ngSubmit)="onSubmit()" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:32px">
         <div class="form-group" style="flex:1;min-width:160px">
           <label>Name</label>
-          <input class="form-control" formControlName="name" placeholder="Alice Smith" />
+          <input class="form-control" formControlName="name" placeholder="Enter Name" />
           @if (form.get('name')?.invalid && form.get('name')?.touched) {
             <span style="color:var(--danger);font-size:0.78rem">Name is required</span>
           }
         </div>
         <div class="form-group" style="flex:1;min-width:200px">
           <label>Email</label>
-          <input class="form-control" formControlName="email" type="email" placeholder="alice@example.com" />
+          <input class="form-control" formControlName="email" type="email" placeholder="Enter Email" />
           @if (form.get('email')?.invalid && form.get('email')?.touched) {
             <span style="color:var(--danger);font-size:0.78rem">Valid email required</span>
           }
         </div>
         <div class="form-group" style="flex:1;min-width:160px">
           <label>Phone</label>
-          <input class="form-control" formControlName="phone_number" placeholder="+91 9876543210" />
+          <input class="form-control" formControlName="phone_number" placeholder="Enter Phone Number" />
           @if (form.get('phone_number')?.invalid && form.get('phone_number')?.touched) {
             <span style="color:var(--danger);font-size:0.78rem">Valid phone required</span>
           }

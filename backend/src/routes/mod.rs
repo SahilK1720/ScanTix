@@ -41,6 +41,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/events/:id/stats", get(handlers::events::get_event_stats))
         .route("/api/events/:id", put(handlers::events::update_event))
         .route("/api/events/:id", delete(handlers::events::delete_event))
+        .route("/api/events/:id/cancel", post(handlers::events::cancel_event))
         .route("/api/events/:id/images", post(handlers::events::upload_event_images))
         // Seat map management (organizer)
         .route("/api/events/:id/seats/generate", post(handlers::seats::generate_event_seats))
@@ -79,6 +80,14 @@ pub fn create_router(state: AppState) -> Router {
         // Razorpay Payment
         .route("/api/payment/create-order", post(handlers::payment::create_razorpay_order))
         .route("/api/payment/verify", post(handlers::payment::verify_and_book))
+        // Bank details
+        .route("/api/organizer/bank-details",
+            get(handlers::bank_details::get_bank_details)
+            .post(handlers::bank_details::create_bank_details)
+            .put(handlers::bank_details::update_bank_details)
+        )
+        // Event cancellation queries
+        .route("/api/organizer/events/:id/cancellation", get(handlers::events::get_event_cancellation))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     // Purchase route (auth + rate limiting)

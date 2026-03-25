@@ -31,12 +31,27 @@ pub async fn run_migrations(pool: &PgPool) {
         include_str!("../migrations/018_replace_event_staff_add_scanned_tickets.sql"),
         include_str!("../migrations/019_fix_event_staff_schema.sql"),
         include_str!("../migrations/020_add_event_timings_and_maps.sql"),
+        include_str!("../migrations/021_create_organizer_bank_details.sql"),
+        include_str!("../migrations/022_create_cancellation_tables.sql"),
     ];
 
     for (i, migration) in migrations.iter().enumerate() {
+        let migration_num = i + 1;
         match sqlx::Executor::execute(pool, *migration).await {
-            Ok(_) => tracing::info!("Migration {} applied successfully", i + 1),
-            Err(e) => tracing::warn!("Migration {} (may already exist): {}", i + 1, e),
+            Ok(_) => tracing::info!("Migration {} (/{}) applied successfully", migration_num, migrations.len()),
+            Err(e) => {
+                let err_msg = e.to_string();
+                if err_msg.contains("already exists") || err_msg.contains("already present") {
+                    tracing::debug!("Migration {} already applied", migration_num);
+                } else {
+                    tracing::error!("❌ Migration {} FAILED: {}", migration_num, e);
+                    // In development, we want to know immediately if a migration is broken
+                    if std::env::var("RUST_ENV").unwrap_or_default() != "production" {
+                        // Fallback: log then panic if not already on a crash course
+                        tracing::warn!("⚠️ Execution continuing despite migration failure - check DB state!");
+                    }
+                }
+            }
         }
     }
 }

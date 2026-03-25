@@ -27,6 +27,14 @@ pub struct Ticket {
     pub event_ticket_price: Option<rust_decimal::Decimal>,
     #[sqlx(default)]
     pub event_vip_price: Option<rust_decimal::Decimal>,
+    #[sqlx(default)]
+    pub event_status: Option<String>,
+    #[sqlx(default)]
+    pub event_image: Option<String>,
+    #[sqlx(default)]
+    pub event_location: Option<String>,
+    #[sqlx(default)]
+    pub google_maps_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -78,4 +86,5 @@ pub struct TicketWithQr {
     pub event_image: Option<String>,
     pub event_date: DateTime<Utc>,
     pub seat_label: Option<String>,
+    pub event_status: Option<String>,
 }

@@ -84,8 +84,12 @@ import { StaffManagementComponent } from '../../staff/staff-management/staff-man
                 <span style="font-size:1.2rem;font-weight:700;color:var(--success)">&#8377;{{ stats.gross_sales }}</span>
               </div>
               <div style="display:flex;justify-content:space-between">
-                <span style="color:var(--text-secondary)">Platform Commission</span>
+                <span style="color:var(--text-secondary)">Platform Commission (5%)</span>
                 <span style="font-weight:600;color:var(--danger)">-&#8377;{{ stats.platform_commission }}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span style="color:var(--text-secondary)">Gateway Charges (2%)</span>
+                <span style="font-weight:600;color:var(--danger)">-&#8377;{{ stats.gateway_charges }}</span>
               </div>
               
               <div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px dashed var(--border-glass);border-bottom:1px dashed var(--border-glass)">

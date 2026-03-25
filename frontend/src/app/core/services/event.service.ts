@@ -66,6 +66,53 @@ export interface UpdateEventPayload {
     refund_policy?: 'REFUNDABLE' | 'NON_REFUNDABLE';
 }
 
+export interface BankDetails {
+    id: string;
+    organizer_id: string;
+    account_holder_name: string;
+    bank_name: string;
+    account_number: string; // Masked from backend
+    ifsc_code: string;
+    branch_name?: string;
+    upi_id?: string;
+    pan_number?: string;
+    account_type: 'savings' | 'current';
+    is_verified: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SaveBankDetailsPayload {
+    account_holder_name: string;
+    bank_name: string;
+    account_number: string;
+    confirm_account_number: string;
+    ifsc_code: string;
+    branch_name?: string;
+    upi_id?: string;
+    pan_number?: string;
+    account_type: 'savings' | 'current';
+}
+
+export interface EventCancellationPreview {
+    message: string;
+    tickets_refunded: number;
+    total_revenue: string;
+    cancellation_fee: string;
+}
+
+export interface EventCancellationRecord {
+    id: string;
+    event_id: string;
+    organizer_id: string;
+    tickets_sold: number;
+    total_revenue: string;
+    cancellation_fee: string;
+    fee_status: 'outstanding' | 'paid';
+    reason?: string;
+    created_at: string;
+}
+
 export interface EventStats {
     event_id: string;
     title: string;
@@ -124,5 +171,27 @@ export class EventService {
         const formData = new FormData();
         files.forEach(f => formData.append('images', f));
         return this.http.post<ScanEvent>(`${environment.apiUrl}/events/${id}/images`, formData);
+    }
+
+    // --- Bank Details ---
+    getBankDetails(): Observable<BankDetails | null> {
+        return this.http.get<BankDetails | null>(`${environment.apiUrl}/organizer/bank-details`);
+    }
+
+    createBankDetails(data: SaveBankDetailsPayload): Observable<BankDetails> {
+        return this.http.post<BankDetails>(`${environment.apiUrl}/organizer/bank-details`, data);
+    }
+
+    updateBankDetails(data: SaveBankDetailsPayload): Observable<BankDetails> {
+        return this.http.put<BankDetails>(`${environment.apiUrl}/organizer/bank-details`, data);
+    }
+
+    // --- Event Cancellation ---
+    cancelEvent(id: string, reason?: string): Observable<EventCancellationPreview> {
+        return this.http.post<EventCancellationPreview>(`${environment.apiUrl}/events/${id}/cancel`, { reason });
+    }
+
+    getEventCancellation(id: string): Observable<EventCancellationRecord | null> {
+        return this.http.get<EventCancellationRecord | null>(`${environment.apiUrl}/organizer/events/${id}/cancellation`);
     }
 }

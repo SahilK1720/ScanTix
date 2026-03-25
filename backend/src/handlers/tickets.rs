@@ -263,7 +263,11 @@ pub async fn my_tickets(
             e.event_date as event_date,
             e.refund_policy as event_refund_policy,
             e.ticket_price as event_ticket_price,
-            e.vip_price as event_vip_price
+            e.vip_price as event_vip_price,
+            e.status as event_status,
+            e.image_urls[1] as event_image,
+            e.location as event_location,
+            e.google_maps_url
         FROM tickets t
         JOIN events e ON t.event_id = e.id
         WHERE t.user_id = $1 
@@ -304,6 +308,9 @@ pub async fn get_ticket_qr(
         event_title: String,
         event_images: Option<Vec<String>>,
         event_date: chrono::DateTime<chrono::Utc>,
+        event_status: String,
+        event_location: String,
+        google_maps_url: Option<String>,
         // Seat fields
         row_label: Option<String>,
         seat_number: Option<i32>,
@@ -318,6 +325,9 @@ pub async fn get_ticket_qr(
             e.title as event_title,
             e.image_urls as event_images,
             e.event_date as event_date,
+            e.status as event_status,
+            e.location as event_location,
+            e.google_maps_url,
             s.row_label,
             s.seat_number
         FROM tickets t
@@ -334,6 +344,15 @@ pub async fn get_ticket_qr(
 
     let qr_image = qr::generate_qr_image_base64(&data.qr_code_data)
         .map_err(|e| AppError::Internal(e))?;
+
+    let first_image = data.event_images.and_then(|mut images| {
+        if !images.is_empty() { Some(images.remove(0)) } else { None }
+    });
+
+    let seat_label = match (data.row_label, data.seat_number) {
+        (Some(r), Some(n)) => Some(format!("Row {} - Seat {}", r, n)),
+        _ => None,
+    };
 
     let ticket = Ticket {
         id: data.id,
@@ -352,17 +371,11 @@ pub async fn get_ticket_qr(
         event_refund_policy: None,
         event_ticket_price: None,
         event_vip_price: None,
+        event_status: Some(data.event_status.clone()),
+        event_image: first_image.clone(),
+        event_location: Some(data.event_location.clone()),
+        google_maps_url: data.google_maps_url.clone(),
     };
-
-    let first_image = data.event_images.and_then(|mut images| {
-        if !images.is_empty() { Some(images.remove(0)) } else { None }
-    });
-
-    let seat_label = match (data.row_label, data.seat_number) {
-        (Some(r), Some(n)) => Some(format!("Row {} - Seat {}", r, n)),
-        _ => None,
-    };
-
     Ok(Json(TicketWithQr {
         ticket,
         qr_image_base64: qr_image,
@@ -370,6 +383,7 @@ pub async fn get_ticket_qr(
         event_image: first_image,
         event_date: data.event_date,
         seat_label,
+        event_status: Some(data.event_status),
     }))
 }
 

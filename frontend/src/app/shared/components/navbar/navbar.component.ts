@@ -21,6 +21,7 @@ import { AuthService } from '../../../core/services/auth.service';
             @if (auth.isOrganizer) {
               <a routerLink="/my-events" routerLinkActive="active">My Events</a>
               <a routerLink="/events/create" routerLinkActive="active">+ Create</a>
+              <a routerLink="/organizer/bank-details" routerLinkActive="active">🏦 Bank</a>
             } @else {
               <a routerLink="/my-tickets" routerLinkActive="active">My Tickets</a>
             }

@@ -25,6 +25,11 @@ export const routes: Routes = [
         canActivate: [authGuard]
     },
     {
+        path: 'events/:id/edit',
+        loadComponent: () => import('./features/events/event-edit/event-edit.component').then(m => m.EventEditComponent),
+        canActivate: [authGuard]
+    },
+    {
         path: 'events/:id',
         loadComponent: () => import('./features/events/event-detail/event-detail.component').then(m => m.EventDetailComponent)
     },
@@ -36,6 +41,11 @@ export const routes: Routes = [
     {
         path: 'dashboard',
         loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
+        canActivate: [authGuard]
+    },
+    {
+        path: 'organizer/bank-details',
+        loadComponent: () => import('./features/organizer/bank-details/bank-details.component').then(m => m.BankDetailsComponent),
         canActivate: [authGuard]
     },
     {

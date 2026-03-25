@@ -21,6 +21,10 @@ export interface Ticket {
     event_refund_policy?: 'REFUNDABLE' | 'NON_REFUNDABLE';
     event_ticket_price?: string;
     event_vip_price?: string | null;
+    event_status?: string;
+    event_image?: string;
+    event_location?: string;
+    google_maps_url?: string;
 }
 
 export interface CancellationPreview {
@@ -47,6 +51,7 @@ export interface TicketWithQr {
     event_image: string | null;
     event_date: string;
     seat_label: string | null;
+    event_status?: string;
 }
 
 export interface PurchaseRequest {

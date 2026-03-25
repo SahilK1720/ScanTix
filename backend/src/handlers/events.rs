@@ -2,6 +2,9 @@ use axum::{
     extract::{Path, State, Multipart},
     Extension, Json,
 };
+use chrono::Utc;
+use reqwest::Client;
+use rust_decimal::prelude::ToPrimitive;
 use uuid::Uuid;
 use std::fs;
 
@@ -124,8 +127,8 @@ pub async fn get_event_stats(
     let vip_revenue = event.vip_price.unwrap_or(rust_decimal::Decimal::ZERO) * rust_decimal::Decimal::from(vip_sold);
     let regular_revenue = event.ticket_price * rust_decimal::Decimal::from(regular_sold);
 
-    let mut vip_remaining = -1;
-    let mut regular_remaining = -1;
+    let mut vip_remaining;
+    let mut regular_remaining;
 
     if event.seat_map_enabled {
         #[derive(sqlx::FromRow)]
@@ -277,6 +280,33 @@ pub async fn update_event(
     if existing.organizer_id != claims.sub && claims.role != "admin" {
         return Err(AppError::Forbidden("Not authorized to update this event".to_string()));
     }
+
+    // Restrict sensitive fields once tickets have been sold
+    if existing.tickets_sold > 0 {
+        let restricted = [
+            (input.event_date.is_some(), "event_date"),
+            (input.gate_open_time.is_some(), "gate_open_time"),
+            (input.event_end_time.is_some(), "event_end_time"),
+            (input.location.is_some(), "location"),
+            (input.ticket_price.is_some(), "ticket_price"),
+            (input.vip_price.is_some(), "vip_price"),
+        ];
+        for (is_set, field_name) in restricted {
+            if is_set {
+                return Err(AppError::BadRequest(
+                    format!("{} cannot be changed after tickets have been sold", field_name)
+                ));
+            }
+        }
+        if let Some(new_max) = input.max_tickets {
+            if new_max < existing.tickets_sold {
+                return Err(AppError::BadRequest(
+                    format!("max_tickets cannot be reduced below tickets already sold ({})", existing.tickets_sold)
+                ));
+            }
+        }
+    }
+
     if let Some(policy) = input.refund_policy.as_deref() {
         if policy != "REFUNDABLE" && policy != "NON_REFUNDABLE" {
             return Err(AppError::BadRequest("refund_policy must be REFUNDABLE or NON_REFUNDABLE".to_string()));
@@ -329,7 +359,7 @@ pub async fn update_event(
     Ok(Json(event))
 }
 
-/// DELETE /api/events/:id — cancel event
+/// DELETE /api/events/:id — simple cancel (legacy, kept for compatibility)
 pub async fn delete_event(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -351,6 +381,181 @@ pub async fn delete_event(
         .await?;
 
     Ok(Json(serde_json::json!({ "message": "Event cancelled successfully" })))
+}
+
+/// POST /api/events/:id/cancel — cancel event with full refund + penalty logic
+pub async fn cancel_event(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let existing = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Event not found".to_string()))?;
+
+    if existing.organizer_id != claims.sub && claims.role != "admin" {
+        return Err(AppError::Forbidden("Not authorized to cancel this event".to_string()));
+    }
+    if existing.status == "cancelled" {
+        return Err(AppError::BadRequest("Event is already cancelled".to_string()));
+    }
+
+    let reason = body.get("reason").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+    // ── Case A: No tickets sold ──────────────────────────────────────────────
+    if existing.tickets_sold == 0 {
+        sqlx::query(
+            "UPDATE events SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = $2 WHERE id = $1"
+        )
+        .bind(id)
+        .bind(&reason)
+        .execute(&state.db)
+        .await?;
+
+        return Ok(Json(serde_json::json!({
+            "message": "Event cancelled successfully",
+            "tickets_refunded": 0,
+            "cancellation_fee": 0,
+        })));
+    }
+
+    // ── Case B: Tickets sold — full refund + 15% penalty ─────────────────────
+    // Calculate total revenue from paid/confirmed orders
+    let total_revenue: Option<rust_decimal::Decimal> = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE event_id = $1 AND (status = 'paid' OR status = 'confirmed')"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+    let total_revenue = total_revenue.unwrap_or(rust_decimal::Decimal::ZERO);
+    let cancellation_fee = total_revenue * rust_decimal::Decimal::from_str_exact("0.15").unwrap();
+
+    let mut tx = state.db.begin().await?;
+
+    // Mark event cancelled
+    sqlx::query(
+        "UPDATE events SET status = 'cancelled', cancelled_at = NOW(), cancellation_reason = $2 WHERE id = $1"
+    )
+    .bind(id)
+    .bind(&reason)
+    .execute(&mut *tx)
+    .await?;
+
+    // Record cancellation with fee
+    sqlx::query(
+        r#"INSERT INTO event_cancellations
+           (event_id, organizer_id, tickets_sold, total_revenue, cancellation_fee, reason)
+           VALUES ($1, $2, $3, $4, $5, $6)"#
+    )
+    .bind(id)
+    .bind(existing.organizer_id)
+    .bind(existing.tickets_sold)
+    .bind(total_revenue)
+    .bind(cancellation_fee)
+    .bind(&reason)
+    .execute(&mut *tx)
+    .await?;
+
+    // Fetch all active/valid tickets with their payment_id
+    #[derive(sqlx::FromRow)]
+    struct TicketRefundInfo {
+        ticket_id: Uuid,
+        user_id: Uuid,
+        total_amount: rust_decimal::Decimal,
+        razorpay_payment_id: Option<String>,
+    }
+
+    let tickets_to_refund = sqlx::query_as::<_, TicketRefundInfo>(
+        r#"SELECT t.id as ticket_id, t.user_id, o.total_amount, o.razorpay_payment_id
+           FROM tickets t
+           JOIN orders o ON o.id = t.order_id
+           WHERE t.event_id = $1 AND t.status IN ('active', 'valid')"#
+    )
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let refund_count = tickets_to_refund.len();
+
+    // Create ticket_refunds records and mark tickets cancelled
+    for t in &tickets_to_refund {
+        sqlx::query(
+            r#"INSERT INTO ticket_refunds
+               (ticket_id, attendee_id, event_id, payment_id, refund_amount, refund_status)
+               VALUES ($1, $2, $3, $4, $5, 'pending')"#
+        )
+        .bind(t.ticket_id)
+        .bind(t.user_id)
+        .bind(id)
+        .bind(&t.razorpay_payment_id)
+        .bind(t.total_amount)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query("UPDATE tickets SET status = 'cancelled', refund_status = 'pending' WHERE id = $1")
+            .bind(t.ticket_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    tx.commit().await?;
+
+    // ── Fire Razorpay refunds asynchronously ─────────────────────────────────
+    let db_clone = state.db.clone();
+    let razorpay_key_id = state.config.razorpay_key_id.clone();
+    let razorpay_key_secret = state.config.razorpay_key_secret.clone();
+
+    tokio::spawn(async move {
+        let client = Client::new();
+        #[derive(sqlx::FromRow)]
+        struct RefundRow {
+            id: Uuid,
+            payment_id: Option<String>,
+            refund_amount: rust_decimal::Decimal,
+        }
+        let refund_rows = sqlx::query_as::<_, RefundRow>(
+            "SELECT id, payment_id, refund_amount FROM ticket_refunds WHERE event_id = $1 AND refund_status = 'pending'"
+        )
+        .bind(id)
+        .fetch_all(&db_clone)
+        .await
+        .unwrap_or_default();
+
+        for row in refund_rows {
+            if let Some(ref payment_id) = row.payment_id {
+                let amount_paise = (row.refund_amount * rust_decimal::Decimal::from(100_i32))
+                    .round().to_u64().unwrap_or(0);
+                let res = client
+                    .post(format!("https://api.razorpay.com/v1/payments/{}/refund", payment_id))
+                    .basic_auth(&razorpay_key_id, Some(&razorpay_key_secret))
+                    .json(&serde_json::json!({ "amount": amount_paise }))
+                    .send()
+                    .await;
+
+                let new_status = match res {
+                    Ok(r) if r.status().is_success() => "completed",
+                    _ => "failed",
+                };
+                let _ = sqlx::query(
+                    "UPDATE ticket_refunds SET refund_status = $1, completed_at = NOW() WHERE id = $2"
+                )
+                .bind(new_status)
+                .bind(row.id)
+                .execute(&db_clone)
+                .await;
+            }
+        }
+    });
+
+    Ok(Json(serde_json::json!({
+        "message": "Event cancelled. Refunds are being processed.",
+        "tickets_refunded": refund_count,
+        "total_revenue": total_revenue.to_string(),
+        "cancellation_fee": cancellation_fee.to_string(),
+    })))
 }
 
 /// POST /api/events/:id/images — upload images for an event
@@ -411,4 +616,37 @@ pub async fn upload_event_images(
     .await?;
 
     Ok(Json(event))
+}
+
+/// GET /api/organizer/events/:id/cancellation — get cancellation record
+pub async fn get_event_cancellation(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    #[derive(sqlx::FromRow, serde::Serialize)]
+    struct CancellationRecord {
+        id: Uuid,
+        event_id: Uuid,
+        organizer_id: Uuid,
+        tickets_sold: i32,
+        total_revenue: rust_decimal::Decimal,
+        cancellation_fee: rust_decimal::Decimal,
+        fee_status: String,
+        reason: Option<String>,
+        created_at: chrono::DateTime<Utc>,
+    }
+
+    let record = sqlx::query_as::<_, CancellationRecord>(
+        "SELECT * FROM event_cancellations WHERE event_id = $1 AND organizer_id = $2"
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .fetch_optional(&state.db)
+    .await?;
+
+    match record {
+        Some(r) => Ok(Json(serde_json::to_value(r).unwrap())),
+        None => Ok(Json(serde_json::json!(null))),
+    }
 }

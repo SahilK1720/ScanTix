@@ -83,15 +83,6 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
             </div>
           }
 
-          <!-- Custom Canvas Image Cropper Modal -->
-          @if (imageFile) {
-            <app-image-cropper
-              [imageFile]="imageFile"
-              [aspectRatio]="16/9"
-              (imageCropped)="onImageCropped($event)"
-              (cropCanceled)="cancelCrop()">
-            </app-image-cropper>
-          }
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div class="form-group">
@@ -282,6 +273,16 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
         </form>
       </div>
     </div>
+
+    <!-- Custom Canvas Image Cropper Modal (Root level for viewport centering) -->
+    @if (imageFile) {
+      <app-image-cropper
+        [imageFile]="imageFile"
+        [aspectRatio]="16/9"
+        (imageCropped)="onImageCropped($event)"
+        (cropCanceled)="cancelCrop()">
+      </app-image-cropper>
+    }
   `,
   styles: [`
     button:disabled {

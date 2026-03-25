@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { EventService, ScanEvent } from '../../core/services/event.service';
 import { TicketService, Ticket } from '../../core/services/ticket.service';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
@@ -47,33 +48,52 @@ import { AuthService } from '../../core/services/auth.service';
         <div style="display:flex;gap:12px;margin-bottom:32px;flex-wrap:wrap">
           <a routerLink="/events/create" class="btn btn-primary">➕ Create New Event</a>
           <a routerLink="/my-events" class="btn btn-secondary">📋 My Events</a>
-          <a routerLink="/scanner" class="btn btn-secondary">📷 Scan Tickets</a>
+          <a routerLink="/organizer/bank-details" class="btn btn-secondary">🏦 Bank Details</a>
         </div>
 
         @if (myEvents.length > 0) {
           <h2 style="margin-bottom:16px;font-size:1.3rem">Recent Events</h2>
           <div class="grid-2">
             @for (event of myEvents.slice(0,4); track event.id) {
-              <div class="glass-card" style="padding:24px">
-                <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
-                  <h3 style="font-size:1.1rem">{{ event.title }}</h3>
-                </div>
-                @if (event.location) {
-                  <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px">📍 {{ event.location }}</p>
-                }
-                <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px">
-                  📅 {{ event.event_date | date:'EEEE, MMM d, y' }} • {{ event.event_date | date:'h:mm a' }} IST
-                </p>
-                <div style="margin-bottom:12px">
-                  <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:var(--text-muted);margin-bottom:6px">
-                    <span>🎟️ {{ event.tickets_sold }}/{{ event.max_tickets }} sold</span>
-                    <span>{{ ((event.tickets_sold / event.max_tickets) * 100).toFixed(0) }}%</span>
+              <div class="stat-card glass-card organizer-event-card">
+                <div class="card-header">
+                  <div class="header-text">
+                    <h3 class="event-title">{{ event.title }}</h3>
+                    <p class="event-meta" style="margin-top: 8px">
+                      📅 {{ event.event_date | date:'EEEE, MMM d, y' }}
+                    </p>
+                    <p class="event-meta">
+                      ⏰ {{ event.event_date | date:'h:mm a' }} IST
+                    </p>
+                    @if (event.location) {
+                      <p class="event-location" style="margin-top: 4px; margin-bottom: 8px">📍 {{ event.location }}</p>
+                    }
+                    <span class="badge" [class]="getStatusClass(event.status)" style="font-size: 0.65rem; padding: 2px 8px;">
+                      {{ event.status.toUpperCase() }}
+                    </span>
                   </div>
-                  <div class="prog-bar"><div class="prog-fill" [style.width.%]="(event.tickets_sold / event.max_tickets) * 100"></div></div>
+                  @if (event.image_urls[0]) {
+                    <div class="event-thumbnail" [style.background-image]="'url(' + getImageUrl(event.image_urls[0]) + ')'"></div>
+                  } @else {
+                    <div class="event-thumbnail placeholder">🎟️</div>
+                  }
                 </div>
-                <div style="display:flex;gap:8px">
-                  <a [routerLink]="['/events', event.id]" class="btn btn-secondary btn-sm">View</a>
-                  <a [routerLink]="['/analytics', event.id]" class="btn btn-secondary btn-sm">📊 Analytics</a>
+                
+                <div style="flex-grow:1"></div>
+
+                <div class="card-footer">
+                  <div class="sales-section">
+                    <div class="sales-info">
+                      <span>🎟️ {{ event.tickets_sold }}/{{ event.max_tickets }} sold</span>
+                      <span class="sales-pct">{{ ((event.tickets_sold / event.max_tickets) * 100).toFixed(0) }}%</span>
+                    </div>
+                    <div class="prog-bar"><div class="prog-fill" [style.width.%]="(event.tickets_sold / event.max_tickets) * 100"></div></div>
+                  </div>
+                  
+                  <div class="card-actions">
+                    <a [routerLink]="['/events', event.id]" class="btn-dashboard btn-view">View</a>
+                    <a [routerLink]="['/analytics', event.id]" class="btn-dashboard btn-analytics">📊 Analytics</a>
+                  </div>
                 </div>
               </div>
             }
@@ -145,6 +165,76 @@ import { AuthService } from '../../core/services/auth.service';
     .prog-bar { height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; }
     .prog-fill { height:100%; background:var(--accent-gradient); border-radius:3px; transition:width 0.6s ease; }
     .ticket-item:hover { transform:translateY(-3px); box-shadow:0 8px 20px rgba(234,179,8,0.15); }
+
+    .organizer-event-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 20px;
+      min-height: 320px;
+    }
+    .organizer-event-card:hover {
+      transform: translateY(-5px);
+      background: rgba(255,255,255,0.03);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    }
+    .card-header { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+    .header-text { flex: 1; }
+    .event-title { font-size: 1.15rem; font-weight: 700; margin: 0; color: #fff; }
+    .event-meta { font-size: 0.82rem; color: #888; margin: 2px 0; }
+    .event-location { font-size: 0.82rem; color: #666; margin: 0; }
+    .event-thumbnail { width: 80px; height: 80px; border-radius: 12px; background-size: cover; background-position: center; background-color: #333; flex-shrink: 0; }
+    .event-thumbnail.placeholder { display: flex; align-items: center; justify-content: center; font-size: 1.8rem; }
+    
+    .card-footer { margin-top: auto; display: flex; flex-direction: column; padding-top: 16px; }
+    .sales-section { margin-bottom: 8px; }
+    .sales-info { display: flex; justify-content: space-between; font-size: 0.82rem; color: #999; margin-bottom: 8px; }
+    .sales-pct { font-weight: 600; color: var(--accent-primary); }
+    .card-actions { 
+      display: flex; 
+      gap: 12px; 
+      justify-content: center; 
+      padding-top: 16px; 
+      border-top: 1px solid rgba(255,255,255,0.05); 
+      margin-top: 12px;
+    }
+    .btn-dashboard {
+      flex: 1;
+      max-width: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-view {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    .btn-view:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.3);
+      transform: translateY(-2px);
+    }
+    .btn-analytics {
+      background: rgba(234, 179, 8, 0.05);
+      border: 1px solid rgba(234, 179, 8, 0.2);
+      color: var(--accent-primary);
+    }
+    .btn-analytics:hover {
+      background: rgba(234, 179, 8, 0.15);
+      border-color: var(--accent-primary);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(234, 179, 8, 0.1);
+    }
   `]
 })
 export class DashboardComponent implements OnInit {
@@ -177,5 +267,12 @@ export class DashboardComponent implements OnInit {
   get totalSold() { return this.myEvents.reduce((sum, e) => sum + e.tickets_sold, 0); }
   get totalRevenue() { return this.myEvents.reduce((sum, e) => sum + (parseFloat(e.ticket_price) * e.tickets_sold), 0); }
   get activeEvents() { return this.myEvents.filter(e => e.status === 'published').length; }
+  getImageUrl(path: string): string {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    const baseUrl = environment.apiUrl.replace('/api', '');
+    return `${baseUrl}${path}`;
+  }
+
   getStatusClass(s: string) { return s === 'published' ? 'badge-success' : s === 'draft' ? 'badge-warning' : s === 'cancelled' ? 'badge-danger' : 'badge-info'; }
 }

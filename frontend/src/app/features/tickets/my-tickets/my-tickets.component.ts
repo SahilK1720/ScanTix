@@ -15,6 +15,34 @@ import { environment } from '../../../../environments/environment';
         <p>View and manage your purchased tickets</p>
       </div>
 
+      <!-- Organizer Cancellation Banners -->
+        <div class="organizer-cancel-banners" style="margin-bottom:32px; display: flex; flex-direction: column; gap: 16px;">
+          @for (event of cancelledByOrganizerEvents; track event.id) {
+            <div class="glass-card banner-item animate-fadeIn" style="border-left:4px solid #ef4444;background:rgba(239,68,68,0.1);padding:20px;display:flex;justify-content:space-between;align-items:center;gap:20px;">
+              <div style="display:flex;gap:16px;align-items:center">
+                <span style="font-size:2rem">📢</span>
+                <div>
+                  <h3 style="margin:0;color:#fca5a5;font-size:1.1rem">Event Cancelled: {{ event.title }}</h3>
+                  <p style="margin:4px 0 0;color:var(--text-secondary);font-size:0.9rem">
+                    The organizer has cancelled this event. Full refunds for all your tickets have been initiated.
+                  </p>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <button class="btn btn-secondary btn-sm" (click)="scrollToEvent(event.id)">View Tickets</button>
+                <button (click)="dismissNotification(event.id, $event)" 
+                        style="background: none; border: none; color: #9ca3af; cursor: pointer; padding: 6px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; border-radius: 50%;"
+                        onmouseover="this.style.color='#fff'; this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.color='#9ca3af'; this.style.background='none'">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+
       @if (loading) {
         <div class="loading-overlay"><div class="spinner"></div><span>Loading tickets...</span></div>
       } @else if (tickets.length === 0) {
@@ -27,261 +55,494 @@ import { environment } from '../../../../environments/environment';
       } @else {
         <!-- Stats row -->
         <div class="grid-4" style="margin-bottom:24px">
-          <div class="stat-card glass-card">
+          <div class="stat-card glass-card stat-total">
             <div class="stat-label">Total Tickets</div>
             <div class="stat-value gradient-text">{{ tickets.length }}</div>
           </div>
-          <div class="stat-card glass-card">
+          <div class="stat-card glass-card stat-active">
             <div class="stat-label">Active</div>
             <div class="stat-value" style="color:var(--success)">{{ validCount }}</div>
           </div>
-          <div class="stat-card glass-card">
+          <div class="stat-card glass-card stat-used">
             <div class="stat-label">Used</div>
             <div class="stat-value" style="color:var(--info)">{{ usedCount }}</div>
           </div>
-          <div class="stat-card glass-card">
+          <div class="stat-card glass-card stat-cancelled">
             <div class="stat-label">Cancelled</div>
             <div class="stat-value" style="color:var(--danger)">{{ cancelledCount }}</div>
           </div>
         </div>
 
-        <div class="grid-3">
+        <div class="grid-2">
           @for (ticket of tickets; track ticket.id) {
-            <div class="glass-card ticket-card" style="padding:0;overflow:hidden;cursor:pointer"
+            <div [id]="'ticket-card-' + ticket.id" [attr.data-event-id]="ticket.event_id" class="ticket-premium-card animate-fadeIn"
+                 [class.card-active]="ticket.status === 'active' || ticket.status === 'valid'"
+                 [class.card-used]="ticket.status === 'used'"
+                 [class.card-cancelled]="ticket.status === 'cancelled'"
                  (click)="openTicket(ticket)">
-              <!-- Top stripe -->
-              <div class="ticket-stripe" [class]="(ticket.status === 'active' || ticket.status === 'valid') ? 'stripe-green' : ticket.status === 'used' ? 'stripe-blue' : 'stripe-red'"></div>
+              
+              <div class="card-content">
+                <!-- Top Header: Title and Image -->
+                <div class="card-header">
+                  <div class="header-text">
+                    <h2 class="event-name">{{ ticket.event_title }}</h2>
+                    <p class="event-meta">
+                      {{ ticket.event_date || ticket.created_at | date:'dd MMM' }} | {{ ticket.event_date || ticket.created_at | date:'hh:mm a' }}
+                    </p>
+                    <p class="ticket-qty">1 ticket</p>
+                  </div>
+                  
+                  @if (ticket.event_image) {
+                    <div class="event-thumbnail" [style.background-image]="'url(' + getImageUrl(ticket.event_image) + ')'"></div>
+                  } @else {
+                    <div class="event-thumbnail placeholder">🎟️</div>
+                  }
+                </div>
 
-              <div style="padding:20px">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-                  <span style="font-size:2rem">🎟️</span>
-                  <div style="display:flex;gap:8px">
-                    @if (ticket.ticket_type === 'vip') {
-                      <span class="badge badge-warning" style="background:#eab308;color:#000">VIP</span>
-                    }
-                    <span class="badge" [class]="(ticket.status === 'active' || ticket.status === 'valid') ? 'badge-success' : ticket.status === 'used' ? 'badge-info' : 'badge-danger'">
-                      {{ ticket.status | uppercase }}
-                    </span>
-                    @if (ticket.refund_status === 'refunded') {
-                      <span class="badge badge-info">REFUNDED</span>
+                <!-- Middle Section: Location -->
+                <div class="location-section">
+                  <span class="label">Location</span>
+                  <div class="location-row">
+                    <p class="venue-name">{{ ticket.event_location || 'Venue details pending' }}</p>
+                    @if (ticket.google_maps_url) {
+                      <a [href]="ticket.google_maps_url" target="_blank" (click)="$event.stopPropagation()" class="map-link">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="5.5" y="5.5" width="13" height="13" rx="3.5" transform="rotate(45 12 12)"/>
+                          <path d="M10 15V13a2 2 0 0 1 2-2h3"/>
+                          <path d="M13 8l3 3-3 3"/>
+                        </svg>
+                      </a>
+                    } @else {
+                      <div class="map-link disabled">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="5.5" y="5.5" width="13" height="13" rx="3.5" transform="rotate(45 12 12)"/>
+                        </svg>
+                      </div>
                     }
                   </div>
                 </div>
 
-                <p style="font-size:0.82rem;color:var(--text-secondary)">
-                  📅 {{ ticket.event_date || ticket.created_at | date:'EEEE, MMM d, y' }} • {{ ticket.event_date || ticket.created_at | date:'h:mm a' }} IST
-                </p>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px">
-                  @if (ticket.status === 'cancelled') {
-                    <p style="font-size:0.78rem;color:#5eead4;margin:0;font-weight:500">
-                      Tap to view refund status →
-                    </p>
-                  } @else {
-                    <p style="font-size:0.78rem;color:var(--accent-primary);margin:0;font-weight:500">
-                      Tap to view QR code →
-                    </p>
-                  }
-                  
-                  @if (ticket.status === 'active' || ticket.status === 'valid') {
-                    <button class="icon-btn" (click)="openCancelModal(ticket, $event)" title="Cancel Ticket" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; padding:4px; border-radius:4px; transition:all 0.2s;">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="display:block;">
-                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM2 8a6 6 0 1 1 12 0A6 6 0 0 1 2 8z"/>
-                      </svg>
-                    </button>
-                  }
+                <!-- Footer: Status and Action -->
+                <div class="card-footer">
+                  <div class="status-badge" [class.cancelled]="ticket.status === 'cancelled'" [class.used]="ticket.status === 'used'" [class.active]="ticket.status === 'active' || ticket.status === 'valid'">
+                    @if (ticket.status === 'cancelled' && ticket.event_status === 'cancelled') {
+                      Organizer Cancelled
+                    } @else {
+                      {{ (ticket.status === 'valid' ? 'Active' : ticket.status | titlecase) }}
+                    }
+                  </div>
+
+                  <div class="view-details">
+                    <span>View details</span>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>
           }
         </div>
       }
+    </div>
 
-      <!-- QR Modal -->
-      @if (selectedTicket) {
-        <div class="modal-backdrop" (click)="closeModal()">
-          <div class="modal-card glass-card" (click)="$event.stopPropagation()">
-            <button class="modal-close" (click)="closeModal()" style="z-index: 10; background: rgba(0,0,0,0.5); color: white; border: none;">✕</button>
+    <!-- QR Modal -->
+    @if (selectedTicket) {
+      <div class="modal-backdrop" (click)="closeModal()">
+        <div class="modal-card glass-card" (click)="$event.stopPropagation()">
+          <button class="modal-close" (click)="closeModal()" style="z-index: 10; background: rgba(0,0,0,0.5); color: white; border: none;">✕</button>
 
-            <div class="modal-content-wrapper">
-            @if (qrLoading) {
-              <div class="loading-overlay" style="padding:60px"><div class="spinner"></div></div>
-            } @else if (qrData) {
-              <!-- Event Banner -->
-              @if (qrData.event_image) {
-                <div [style.background-image]="'url(' + getImageUrl(qrData.event_image) + ')'" 
-                     style="height: 120px; background-size: cover; background-position: center; border-bottom: 2px solid var(--border-glass);">
+          <div class="modal-content-wrapper">
+          @if (qrLoading) {
+            <div class="loading-overlay" style="padding:60px"><div class="spinner"></div></div>
+          } @else if (qrData) {
+            <!-- Event Banner -->
+            @if (qrData.event_image) {
+              <div [style.background-image]="'url(' + getImageUrl(qrData.event_image) + ')'" 
+                   style="height: 120px; background-size: cover; background-position: center; border-bottom: 2px solid var(--border-glass);">
+              </div>
+            } @else {
+              <div style="height: 100px; background: var(--accent-gradient); display:flex; align-items:center; justify-content:center; border-bottom: 2px solid var(--border-glass);">
+                <span style="font-size:3rem">🎟️</span>
+              </div>
+            }
+
+            <div style="padding: 20px; text-align: center;">
+              <h2 style="margin-bottom: 4px; font-size: 1.4rem; white-space: pre-wrap;">{{ qrData.event_title }}</h2>
+              <div style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">
+                📅 {{ qrData.event_date | date:'EEEE, MMM d, y' }} • {{ qrData.event_date | date:'h:mm a' }} IST
+              </div>
+
+              <div style="display:flex; gap:8px; justify-content:center; margin-bottom: 20px; flex-wrap: wrap;">
+                @if (selectedTicket.ticket_type === 'vip') {
+                  <span class="badge badge-warning" style="background:#eab308;color:#000; padding: 4px 10px; font-size: 0.75rem;">VIP</span>
+                }
+                <span class="badge"
+                  [class]="(selectedTicket.status === 'active' || selectedTicket.status === 'valid') ? 'badge-success' : selectedTicket.status === 'used' ? 'badge-info' : 'badge-danger'"
+                      style="padding: 4px 10px; font-size: 0.75rem;">
+                  {{ selectedTicket.status | uppercase }}
+                </span>
+                @if (qrData.seat_label) {
+                  <span class="badge badge-info" style="border-color: #3b82f6; color: #3b82f6; background: rgba(59,130,246,0.1); padding: 4px 10px; font-size: 0.75rem;">
+                    🪑 {{ qrData.seat_label }}
+                  </span>
+                }
+              </div>
+
+              @if (selectedTicket.status === 'cancelled') {
+                <div class="refund-panel">
+                  @if (qrData.event_status === 'cancelled') {
+                    <div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:12px; padding:16px; margin-bottom:20px; text-align:left; display:flex; gap:12px; align-items:start">
+                      <span style="font-size:1.5rem">🚨</span>
+                      <div>
+                        <p style="margin:0; font-weight:700; color:#fca5a5; font-size:0.95rem">Event Cancelled by Organizer</p>
+                        <p style="margin:4px 0 0; font-size:0.8rem; color:var(--text-secondary); line-height:1.4">
+                          This event has been cancelled by the organizer. A <strong>full refund</strong> for your booking has been initiated to your source account.
+                        </p>
+                      </div>
+                    </div>
+                  }
+
+                  <div class="refund-head">
+                    <div>
+                      <p class="refund-title">Refund Status</p>
+                      <p class="refund-meta">Ticket #{{ selectedTicket.id.slice(0, 12) }}...</p>
+                    </div>
+                    <span class="refund-pill" [class]="refundPillClass(selectedTicket.refund_status)">
+                      {{ refundLabel(selectedTicket.refund_status) }}
+                    </span>
+                  </div>
+
+                  <div class="refund-timeline">
+                    <div class="refund-step">
+                      <span class="dot" [class.completed]="isRefundStepCompleted(selectedTicket.refund_status, 1)"></span>
+                      <div>
+                        <p class="step-title">Cancellation request submitted</p>
+                        <p class="step-time">{{ selectedTicket.created_at | date:'d MMM y, h:mm a' }}</p>
+                      </div>
+                    </div>
+
+                    <div class="refund-step">
+                      <span class="dot" [class.completed]="isRefundStepCompleted(selectedTicket.refund_status, 2)"></span>
+                      <div>
+                        <p class="step-title">Gateway is processing your refund</p>
+                        <p class="step-time">Status updates when Razorpay confirms settlement</p>
+                      </div>
+                    </div>
+
+                    <div class="refund-step">
+                      <span class="dot" [class.completed]="isRefundStepCompleted(selectedTicket.refund_status, 3)"></span>
+                      <div>
+                        <p class="step-title">Refund credited to source account</p>
+                        <p class="step-time">Final credit time depends on bank settlement cycle</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  @if (selectedTicket.refund_status === 'none') {
+                    <p class="refund-note">This cancellation is not eligible for monetary refund under the event refund policy.</p>
+                  }
+
+                  <button class="btn btn-secondary refund-refresh-btn" (click)="refreshRefundStatus(selectedTicket)">
+                    Refresh Refund Status
+                  </button>
                 </div>
               } @else {
-                <div style="height: 100px; background: var(--accent-gradient); display:flex; align-items:center; justify-content:center; border-bottom: 2px solid var(--border-glass);">
-                  <span style="font-size:3rem">🎟️</span>
+                <div class="qr-wrapper" style="padding: 12px;">
+                  <img [src]="'data:image/png;base64,' + qrData.qr_image_base64" alt="QR Code" class="qr-img">
                 </div>
               }
 
-              <div style="padding: 20px; text-align: center;">
-                <h2 style="margin-bottom: 4px; font-size: 1.4rem; white-space: pre-wrap;">{{ qrData.event_title }}</h2>
-                <div style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">
-                  📅 {{ qrData.event_date | date:'EEEE, MMM d, y' }} • {{ qrData.event_date | date:'h:mm a' }} IST
-                </div>
+              @if (selectedTicket.status !== 'cancelled') {
+                <p style="font-family:monospace; color:var(--text-muted); font-size:0.75rem; margin-top:16px; word-break: break-all;">
+                  Ticket ID: #{{ selectedTicket.id }}
+                </p>
+              }
 
-                <div style="display:flex; gap:8px; justify-content:center; margin-bottom: 20px; flex-wrap: wrap;">
-                  @if (selectedTicket.ticket_type === 'vip') {
-                    <span class="badge badge-warning" style="background:#eab308;color:#000; padding: 4px 10px; font-size: 0.75rem;">VIP</span>
-                  }
-                  <span class="badge"
-                    [class]="(selectedTicket.status === 'active' || selectedTicket.status === 'valid') ? 'badge-success' : selectedTicket.status === 'used' ? 'badge-info' : 'badge-danger'"
-                        style="padding: 4px 10px; font-size: 0.75rem;">
-                    {{ selectedTicket.status | uppercase }}
-                  </span>
-                  @if (qrData.seat_label) {
-                    <span class="badge badge-info" style="border-color: #3b82f6; color: #3b82f6; background: rgba(59,130,246,0.1); padding: 4px 10px; font-size: 0.75rem;">
-                      🪑 {{ qrData.seat_label }}
+              @if (selectedTicket.status === 'used' && selectedTicket.scanned_at) {
+                <div class="verification-banner animate-fadeIn" style="display:inline-flex; align-items:center; gap:12px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); padding:10px 16px; border-radius:14px; margin-top:20px; box-shadow: 0 4px 15px rgba(16,185,129,0.05);">
+                  <div style="background:#10b981; color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; box-shadow:0 0 10px rgba(16,185,129,0.4)">
+                    ✓
+                  </div>
+                  <div style="text-align:left">
+                    <span style="display:block; font-weight:700; color:#10b981; font-size:0.85rem; letter-spacing:0.3px; text-transform:uppercase;">Scan Verified</span>
+                    <span style="display:block; color:var(--text-secondary); font-size:0.78rem; font-weight:500; margin-top:1px;">
+                      {{ selectedTicket.scanned_at | date:'EEEE, MMM d, y' }} • {{ selectedTicket.scanned_at | date:'h:mm a' }} IST
                     </span>
-                  }
+                  </div>
                 </div>
-
-                @if (selectedTicket.status === 'cancelled') {
-                  <div class="refund-panel">
-                    <div class="refund-head">
-                      <div>
-                        <p class="refund-title">Refund Status</p>
-                        <p class="refund-meta">Ticket #{{ selectedTicket.id.slice(0, 12) }}...</p>
-                      </div>
-                      <span class="refund-pill" [class]="refundPillClass(selectedTicket.refund_status)">
-                        {{ refundLabel(selectedTicket.refund_status) }}
-                      </span>
-                    </div>
-
-                    <div class="refund-timeline">
-                      <div class="refund-step">
-                        <span class="dot" [class.completed]="isRefundStepCompleted(selectedTicket.refund_status, 1)"></span>
-                        <div>
-                          <p class="step-title">Cancellation request submitted</p>
-                          <p class="step-time">{{ selectedTicket.created_at | date:'d MMM y, h:mm a' }}</p>
-                        </div>
-                      </div>
-
-                      <div class="refund-step">
-                        <span class="dot" [class.completed]="isRefundStepCompleted(selectedTicket.refund_status, 2)"></span>
-                        <div>
-                          <p class="step-title">Gateway is processing your refund</p>
-                          <p class="step-time">Status updates when Razorpay confirms settlement</p>
-                        </div>
-                      </div>
-
-                      <div class="refund-step">
-                        <span class="dot" [class.completed]="isRefundStepCompleted(selectedTicket.refund_status, 3)"></span>
-                        <div>
-                          <p class="step-title">Refund credited to source account</p>
-                          <p class="step-time">Final credit time depends on bank settlement cycle</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    @if (selectedTicket.refund_status === 'none') {
-                      <p class="refund-note">This cancellation is not eligible for monetary refund under the event refund policy.</p>
-                    }
-
-                    <button class="btn btn-secondary refund-refresh-btn" (click)="refreshRefundStatus(selectedTicket)">
-                      Refresh Refund Status
-                    </button>
-                  </div>
-                } @else {
-                  <div class="qr-wrapper" style="padding: 12px;">
-                    <img [src]="'data:image/png;base64,' + qrData.qr_image_base64" alt="QR Code" class="qr-img">
-                  </div>
-                }
-
-                @if (selectedTicket.status !== 'cancelled') {
-                  <p style="font-family:monospace; color:var(--text-muted); font-size:0.75rem; margin-top:16px; word-break: break-all;">
-                    Ticket ID: #{{ selectedTicket.id }}
-                  </p>
-                }
-
-                @if (selectedTicket.status === 'used' && selectedTicket.scanned_at) {
-                  <p style="color:var(--info);font-size:0.8rem;margin-top:12px; font-weight: 500;">
-                    ✅ Scanned on {{ selectedTicket.scanned_at | date:'EEEE, MMM d, y' }} • {{ selectedTicket.scanned_at | date:'h:mm a' }} IST
-                  </p>
-                } @else if (selectedTicket.status !== 'cancelled') {
-                  <p style="color:var(--text-muted);font-size:0.8rem;margin-top:8px">
-                    Show this QR code at the event entrance
-                  </p>
-                }
-                
-                @if (selectedTicket.status === 'active' || selectedTicket.status === 'valid') {
-                  <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-glass);">
-                    <button class="btn btn-outline-danger" style="width: 100%; border: 1px solid rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1); display: flex; align-items: center; justify-content: center; gap: 8px;" (click)="openCancelModal(selectedTicket, $event)">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                      </svg>
-                      Cancel Booking
-                    </button>
-                    <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">Cancellation policies apply based on event terms</p>
-                  </div>
-                }
-              </div>
-            }
+              } @else if (selectedTicket.status !== 'cancelled') {
+                <p style="color:var(--text-muted);font-size:0.8rem;margin-top:8px">
+                  Show this QR code at the event entrance
+                </p>
+              }
+              
+              @if (selectedTicket.status === 'active' || selectedTicket.status === 'valid') {
+                <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-glass);">
+                  <button class="btn btn-outline-danger" style="width: 100%; border: 1px solid rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1); display: flex; align-items: center; justify-content: center; gap: 8px;" (click)="openCancelModal(selectedTicket, $event)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                    </svg>
+                    Cancel Booking
+                  </button>
+                  <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">Cancellation policies apply based on event terms</p>
+                </div>
+              }
             </div>
+          }
           </div>
         </div>
-      }
+      </div>
+    }
 
-      <!-- Cancellation Confirmation Modal -->
-      @if (cancelTarget && cancellationPreview) {
-        <div class="modal-backdrop" (click)="closeCancelModal()">
-          <div class="modal-card glass-card" (click)="$event.stopPropagation()" style="max-width:520px;padding:24px">
-            <h3 style="margin-bottom:8px">Cancel Ticket Confirmation</h3>
-            <p style="color:var(--text-secondary);margin-bottom:12px">
-              Ticket #{{ cancelTarget.id.slice(0, 12) }}...
-            </p>
+    <!-- Cancellation Confirmation Modal -->
+    @if (cancelTarget && cancellationPreview) {
+      <div class="modal-backdrop" (click)="closeCancelModal()">
+        <div class="modal-card glass-card" (click)="$event.stopPropagation()" style="max-width:520px;padding:24px">
+          <h3 style="margin-bottom:8px">Cancel Ticket Confirmation</h3>
+          <p style="color:var(--text-secondary);margin-bottom:12px">
+            Ticket #{{ cancelTarget.id.slice(0, 12) }}...
+          </p>
 
-            <div style="padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.03)">
-              <p style="margin:0 0 6px"><strong>Refund Amount:</strong> ₹{{ formatMoney(cancellationPreview.refund_amount) }}</p>
-              <p style="margin:0;color:var(--text-muted)">{{ cancellationPreview.reason }}</p>
-            </div>
+          <div style="padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.03)">
+            <p style="margin:0 0 6px"><strong>Refund Amount:</strong> ₹{{ formatMoney(cancellationPreview.refund_amount) }}</p>
+            <p style="margin:0;color:var(--text-muted)">{{ cancellationPreview.reason }}</p>
+          </div>
 
-            <p style="color:var(--text-muted);font-size:0.85rem;margin-top:10px;margin-bottom:16px">
-              Refunds are allowed only for refundable events and only if cancellation is at least 24 hours before event start.
-            </p>
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-top:10px;margin-bottom:16px">
+            Refunds are allowed only for refundable events and only if cancellation is at least 24 hours before event start.
+          </p>
 
-            @if (cancelError) {
-              <div class="alert alert-danger" style="margin-bottom:12px">{{ cancelError }}</div>
-            }
+          @if (cancelError) {
+            <div class="alert alert-danger" style="margin-bottom:12px">{{ cancelError }}</div>
+          }
 
-            <div style="display:flex;gap:10px;justify-content:flex-end">
-              <button class="btn btn-secondary" (click)="closeCancelModal()" [disabled]="cancelLoading">Keep Ticket</button>
-              <button class="btn btn-danger" (click)="confirmCancel()" [disabled]="cancelLoading || !cancellationPreview.can_cancel">
-                @if (cancelLoading) {
-                  <span class="spinner" style="width:16px;height:16px;border-width:2px"></span>
-                } @else {
-                  Confirm Cancellation
-                }
-              </button>
-            </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-secondary" (click)="closeCancelModal()" [disabled]="cancelLoading">Keep Ticket</button>
+            <button class="btn btn-danger" (click)="confirmCancel()" [disabled]="cancelLoading || !cancellationPreview.can_cancel">
+              @if (cancelLoading) {
+                <span class="spinner" style="width:16px;height:16px;border-width:2px"></span>
+              } @else {
+                Confirm Cancellation
+              }
+            </button>
           </div>
         </div>
-      }
-    </div>
+      </div>
+    }
   `,
   styles: [`
-    .ticket-card { transition:all 0.2s ease; }
-    .ticket-card:hover { transform:translateY(-4px); box-shadow:0 8px 30px rgba(234,179,8,0.2); }
-    .ticket-stripe { height:5px; }
-    .stripe-green { background: linear-gradient(90deg, #10b981, #059669); }
-    .stripe-blue { background: linear-gradient(90deg, #06b6d4, #0891b2); }
-    .stripe-red { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .grid-2 { display:grid; grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)); gap:24px; }
+    @media (max-width: 500px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .stat-card {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: default;
+    }
+    .stat-card:hover {
+      transform: translateY(-4px);
+      background: rgba(255,255,255,0.03);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    }
+    .stat-card.stat-total:hover {
+      border-color: rgba(234, 179, 8, 0.4);
+      background: rgba(234, 179, 8, 0.05);
+      box-shadow: 0 12px 40px rgba(234, 179, 8, 0.15);
+    }
+    .stat-card.stat-active:hover {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.05);
+      box-shadow: 0 12px 40px rgba(16, 185, 129, 0.15);
+    }
+    .stat-card.stat-used:hover {
+      border-color: rgba(96, 165, 250, 0.4);
+      background: rgba(96, 165, 250, 0.05);
+      box-shadow: 0 12px 40px rgba(96, 165, 250, 0.15);
+    }
+    .stat-card.stat-cancelled:hover {
+      border-color: rgba(248, 113, 113, 0.4);
+      background: rgba(248, 113, 113, 0.05);
+      box-shadow: 0 12px 40px rgba(248, 113, 113, 0.15);
+    }
+
+    .ticket-premium-card {
+      background: #1a1a1a;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .ticket-premium-card:hover {
+      background: #222;
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    }
+
+    .ticket-premium-card.card-active:hover {
+      border-color: rgba(52, 211, 153, 0.4);
+      background: rgba(52, 211, 153, 0.05);
+      box-shadow: 0 12px 40px rgba(52, 211, 153, 0.15);
+    }
+    .ticket-premium-card.card-used:hover {
+      border-color: rgba(96, 165, 250, 0.4);
+      background: rgba(96, 165, 250, 0.05);
+      box-shadow: 0 12px 40px rgba(96, 165, 250, 0.15);
+    }
+    .ticket-premium-card.card-cancelled:hover {
+      border-color: rgba(248, 113, 113, 0.4);
+      background: rgba(248, 113, 113, 0.05);
+      box-shadow: 0 12px 40px rgba(248, 113, 113, 0.15);
+    }
+
+    .card-content { padding: 24px; }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .header-text { flex: 1; }
+    .event-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1.3;
+      margin: 0 0 8px;
+      color: #fff;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .event-meta {
+      font-size: 0.95rem;
+      color: #999;
+      margin: 0 0 4px;
+    }
+    .ticket-qty {
+      font-size: 0.95rem;
+      color: #666;
+      margin: 0;
+    }
+
+    .event-thumbnail {
+      width: 90px;
+      height: 90px;
+      border-radius: 12px;
+      background-size: cover;
+      background-position: center;
+      background-color: #333;
+      flex-shrink: 0;
+    }
+    .event-thumbnail.placeholder {
+      display: flex; align-items: center; justify-content: center; font-size: 2rem;
+    }
+
+    .location-section {
+      margin-bottom: 24px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .location-section .label {
+      font-size: 0.8rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: block;
+    }
+    .location-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .venue-name {
+      font-size: 1.05rem;
+      color: #ddd;
+      margin: 0;
+      font-weight: 500;
+    }
+    .map-link {
+      color: #999;
+      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+    }
+    .map-link:hover:not(.disabled) {
+      color: #fff;
+      background: rgba(255,255,255,0.08);
+      transform: scale(1.1);
+    }
+    .map-link.disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+    }
+    .status-badge {
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #999;
+    }
+    .status-badge.active { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+    .status-badge.used { color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+    .status-badge.cancelled { color: #f87171; background: rgba(248, 113, 113, 0.1); }
+
+    .view-details {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: gap 0.2s;
+    }
+    .ticket-premium-card:hover .view-details { gap: 8px; }
+
+    .organizer-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: #ef4444;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+      z-index: 5;
+    }
 
     .modal-backdrop {
       position:fixed; inset:0; background:rgba(0,0,0,0.8);
       backdrop-filter:blur(8px); z-index:200;
-      display:flex; align-items:center; justify-content:center; padding:16px;
+      display:flex; align-items:flex-start; justify-content:center; padding:16px;
+      padding-top: 13vh;
     }
     .modal-card {
-      width:100%; max-width:400px; padding:0; margin: auto;
-      max-height: calc(100vh - 32px);
-      display: flex; flex-direction: column; overflow: hidden;
+      width:100%; max-width:420px; padding:0;
+      max-height: 85vh;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.1) transparent;
+      border: 1px solid var(--border-glass);
+      background: rgba(26,26,26,0.95);
+      border-radius: 24px;
       position:relative; animation:fadeIn 0.2s ease;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
     }
+    .modal-card::-webkit-scrollbar { width: 6px; }
+    .modal-card::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     .modal-content-wrapper {
       overflow-y: auto; flex: 1; width: 100%; position: relative;
     }
@@ -417,6 +678,51 @@ export class MyTicketsComponent implements OnInit, OnDestroy {
   cancelLoading = false;
   cancelError = '';
   private statusPollInterval: any;
+  dismissedEventIds = new Set<string>();
+
+  // Notification logic
+  get cancelledByOrganizerEvents() {
+    const cancelled = this.tickets.filter(t => t.event_status === 'cancelled' && !this.dismissedEventIds.has(t.event_id));
+    const uniqueEvents = new Map();
+    cancelled.forEach(t => {
+      if (!uniqueEvents.has(t.event_id)) {
+        uniqueEvents.set(t.event_id, { id: t.event_id, title: t.event_title });
+      }
+    });
+    return Array.from(uniqueEvents.values());
+  }
+
+  dismissNotification(eventId: string, event: MouseEvent) {
+    event.stopPropagation();
+    this.dismissedEventIds.add(eventId);
+    // Persist to local storage so it doesn't show up again on reload
+    localStorage.setItem('dismissed_event_notifications', JSON.stringify(Array.from(this.dismissedEventIds)));
+    this.cdr.detectChanges();
+  }
+
+  scrollToEvent(eventId: string) {
+    const ticketCards = document.querySelectorAll(`[data-event-id="${eventId}"]`);
+    if (ticketCards.length > 0) {
+      // Scroll to the first one found
+      ticketCards[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Highlight all of them with a red glow and scale effect
+      ticketCards.forEach(el => {
+        const card = el as HTMLElement;
+        card.style.boxShadow = '0 0 50px rgba(239, 68, 68, 0.45)';
+        card.style.borderColor = 'rgba(239, 68, 68, 0.7)';
+        card.style.transform = 'translateY(-12px) scale(1.02)';
+        card.style.zIndex = '10';
+        
+        setTimeout(() => {
+          card.style.boxShadow = '';
+          card.style.borderColor = '';
+          card.style.transform = '';
+          card.style.zIndex = '';
+        }, 3000);
+      });
+    }
+  }
 
   constructor(
     private ticketService: TicketService,
@@ -425,6 +731,19 @@ export class MyTicketsComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit() {
+    // Load dismissed notifications from local storage
+    const saved = localStorage.getItem('dismissed_event_notifications');
+    if (saved) {
+      try {
+        const ids = JSON.parse(saved);
+        if (Array.isArray(ids)) {
+          this.dismissedEventIds = new Set(ids);
+        }
+      } catch (e) {
+        console.error('Error parsing dismissed notifications', e);
+      }
+    }
+
     this.ticketService.getMyTickets().subscribe({
       next: (tickets) => {
         this.tickets = tickets;
@@ -446,12 +765,12 @@ export class MyTicketsComponent implements OnInit, OnDestroy {
     this.qrLoading = true;
     this.cdr.detectChanges();
     this.ticketService.getTicketQr(ticket.id).subscribe({
-      next: (data) => { 
-        this.qrData = data; 
+      next: (data) => {
+        this.qrData = data;
         this.selectedTicket = { ...this.selectedTicket!, status: data.ticket.status, scanned_at: data.ticket.scanned_at };
-        this.qrLoading = false; 
-        this.cdr.detectChanges(); 
-        
+        this.qrLoading = false;
+        this.cdr.detectChanges();
+
         // Start polling if ticket is active
         this.startStatusPolling();
       },
@@ -472,13 +791,13 @@ export class MyTicketsComponent implements OnInit, OnDestroy {
           next: (data) => {
             if (this.selectedTicket && (this.selectedTicket.status !== data.ticket.status)) {
               this.selectedTicket = { ...this.selectedTicket, status: data.ticket.status, scanned_at: data.ticket.scanned_at };
-              
+
               // Also update the ticket in the main list
               const idx = this.tickets.findIndex(t => t.id === this.selectedTicket!.id);
               if (idx >= 0) {
                 this.tickets[idx] = { ...this.tickets[idx], status: data.ticket.status, scanned_at: data.ticket.scanned_at };
               }
-              
+
               this.cdr.detectChanges();
               if (data.ticket.status === 'used' || data.ticket.status === 'cancelled') {
                 this.stopStatusPolling();
@@ -497,9 +816,9 @@ export class MyTicketsComponent implements OnInit, OnDestroy {
     }
   }
 
-  closeModal() { 
-    this.selectedTicket = null; 
-    this.qrData = null; 
+  closeModal() {
+    this.selectedTicket = null;
+    this.qrData = null;
     this.stopStatusPolling();
   }
 
@@ -545,7 +864,7 @@ export class MyTicketsComponent implements OnInit, OnDestroy {
             refund_status: res.refund_status
           };
         }
-        
+
         // Also update the currently open modal ticket if it matches
         if (this.selectedTicket && this.selectedTicket.id === this.cancelTarget!.id) {
           this.selectedTicket = {
