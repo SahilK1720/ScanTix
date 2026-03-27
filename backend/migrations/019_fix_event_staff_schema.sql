@@ -1,9 +1,7 @@
--- Idempotent fix: ensure event_staff and scanned_tickets have the correct schema.
--- This handles the case where migration 018 was not applied to the live database.
+-- Migration 019: Fix event_staff schema.
+-- Removed DROP statements to ensure idempotency with our custom runner.
+-- The runner will skip this if the tables already exist (by catching "already exists" error).
 
--- Drop both tables (CASCADE handles FK dependencies)
-DROP TABLE IF EXISTS scanned_tickets CASCADE;
-DROP TABLE IF EXISTS event_staff CASCADE;
 
 -- Recreate event_staff with token-based schema (no user account required)
 CREATE TABLE event_staff (

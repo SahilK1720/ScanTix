@@ -47,6 +47,7 @@ export interface CreateEventPayload {
     image_urls?: string[];
     google_maps_url?: string;
     refund_policy: 'REFUNDABLE' | 'NON_REFUNDABLE';
+    status?: string;
 }
 
 export interface UpdateEventPayload {

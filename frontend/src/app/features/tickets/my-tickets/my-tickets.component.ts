@@ -3,16 +3,18 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { TicketService, Ticket, TicketWithQr, CancellationPreview } from '../../../core/services/ticket.service';
 import { environment } from '../../../../environments/environment';
+import { LanyardComponent } from '../../../shared/components/lanyard/lanyard.component';
 
 @Component({
   selector: 'app-my-tickets',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, LanyardComponent],
   template: `
     <div class="page-container animate-fadeIn">
-      <div class="page-header">
-        <h1>🎟️ <span class="gradient-text">My Tickets</span></h1>
-        <p>View and manage your purchased tickets</p>
+      <div class="page-header" style="position: relative; z-index: 10;">
+        <h1 style="position: relative; z-index: 100;">🎟️ <span class="gradient-text">My Tickets</span></h1>
+        <p style="position: relative; z-index: 100;">View and manage your purchased tickets</p>
+        <app-lanyard [rightOffset]="60"></app-lanyard>
       </div>
 
       <!-- Organizer Cancellation Banners -->
@@ -175,6 +177,9 @@ import { environment } from '../../../../environments/environment';
               <h2 style="margin-bottom: 4px; font-size: 1.4rem; white-space: pre-wrap;">{{ qrData.event_title }}</h2>
               <div style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">
                 📅 {{ qrData.event_date | date:'EEEE, MMM d, y' }} • {{ qrData.event_date | date:'h:mm a' }} IST
+                @if (qrData.gate_opens_at) {
+                  <br><span style="font-size: 0.85rem; color: var(--text-muted); display:inline-block; margin-top:6px;">🚪 Gates Open: {{ qrData.gate_opens_at | date:'h:mm a' }} IST</span>
+                }
               </div>
 
               <div style="display:flex; gap:8px; justify-content:center; margin-bottom: 20px; flex-wrap: wrap;">

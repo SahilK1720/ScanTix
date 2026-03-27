@@ -19,7 +19,7 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
         <p>Set up your event details and start selling tickets</p>
       </div>
 
-      <div class="glass-card" style="padding:40px;max-width:760px;margin: 0 auto;">
+      <div class="glass-card form-card">
         @if (error) { <div class="alert alert-danger">{{ error }}</div> }
 
         <form #eventForm="ngForm" (ngSubmit)="onSubmit()">
@@ -84,7 +84,7 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
           }
 
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="form-grid">
             <div class="form-group">
               <label>Event Date & Time *</label>
               <input type="datetime-local" class="form-control" [(ngModel)]="eventDate" name="event_date" 
@@ -98,7 +98,7 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="form-grid">
             <div class="form-group">
               <label>🚪 Gate Opens At *</label>
               <input type="datetime-local" class="form-control" [(ngModel)]="gateOpenTime" name="gate_open_time"
@@ -123,35 +123,54 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
             }
           </div>
 
-          <div [style.display]="seatMapEnabled ? 'grid' : 'block'" [style.grid-template-columns]="seatMapEnabled ? '1fr 1fr' : 'none'" style="gap:20px">
-            <div class="form-group">
-              <label>Ticket Price (₹) *</label>
-              <input type="text" class="form-control" [(ngModel)]="ticketPrice"
-                     name="ticket_price" placeholder="25.00" 
-                     (input)="enforceDecimal($event)" required>
-            </div>
-            @if (seatMapEnabled) {
-              <div class="form-group">
-                <label>VIP Price (₹) *</label>
-                <input type="text" class="form-control" [(ngModel)]="vipPrice"
-                       name="vip_price" placeholder="75.00" 
-                       (input)="enforceDecimal($event)" required>
+          <div class="seat-toggle-card" [style.borderColor]="isFreeEvent ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)'" 
+               [style.background]="isFreeEvent ? 'rgba(16,185,129,0.03)' : 'transparent'" style="margin-bottom:20px">
+            <div class="seat-toggle-header" (click)="isFreeEvent = !isFreeEvent" 
+                 [style.background]="isFreeEvent ? 'rgba(16,185,129,0.05)' : 'transparent'">
+              <div>
+                <div class="seat-toggle-title" [style.color]="isFreeEvent ? '#10b981' : 'inherit'">✨ This is a Free Event</div>
+                <div class="seat-toggle-sub">Attendees can book without any ticket price</div>
               </div>
-            }
+              <label class="toggle-switch" (click)="$event.stopPropagation()">
+                <input type="checkbox" [(ngModel)]="isFreeEvent" name="is_free_event">
+                <span class="slider" [style.background]="isFreeEvent ? '#10b981' : ''"></span>
+              </label>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label>Refund Policy *</label>
-            <div class="custom-select-wrapper">
-              <select class="form-control custom-select" [(ngModel)]="refundPolicy" name="refund_policy" required>
-                <option value="NON_REFUNDABLE">🔒 Non-Refundable</option>
-                <option value="REFUNDABLE">💸 Refundable (– 24h)</option>
-              </select>
+          @if (!isFreeEvent) {
+            <div [class.form-grid]="seatMapEnabled">
+              <div class="form-group">
+                <label>Ticket Price (₹) *</label>
+                <input type="text" class="form-control" [(ngModel)]="ticketPrice"
+                       name="ticket_price" placeholder="25.00" 
+                       (input)="enforceDecimal($event)" required>
+              </div>
+              @if (seatMapEnabled) {
+                <div class="form-group">
+                  <label>VIP Price (₹) *</label>
+                  <input type="text" class="form-control" [(ngModel)]="vipPrice"
+                         name="vip_price" placeholder="75.00" 
+                         (input)="enforceDecimal($event)" required>
+                </div>
+              }
             </div>
-            <small class="form-hint" style="margin-top:8px; display:block;">
-              Refunds are only eligible when ticket cancellation happens at least 24 hours before event start.
-            </small>
-          </div>
+          }
+
+          @if (!isFreeEvent) {
+            <div class="form-group">
+              <label>Refund Policy *</label>
+              <div class="custom-select-wrapper">
+                <select class="form-control custom-select" [(ngModel)]="refundPolicy" name="refund_policy" required>
+                  <option value="NON_REFUNDABLE">🔒 Non-Refundable</option>
+                  <option value="REFUNDABLE">💸 Refundable (– 24h)</option>
+                </select>
+              </div>
+              <small class="form-hint" style="margin-top:8px; display:block;">
+                Refunds are only eligible when ticket cancellation happens at least 24 hours before event start.
+              </small>
+            </div>
+          }
 
           <!-- ── Seat Layout Toggle ────────────────────────────────────── -->
           <div class="seat-toggle-card">
@@ -182,7 +201,7 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
                     </label>
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+                <div class="form-grid">
                   <div class="form-group" style="margin-bottom:0">
                     <label>Rows (A–Z) *</label>
                     <input type="number" class="form-control"
@@ -260,18 +279,27 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
             </div>
           }
 
-          <div style="display:flex;gap:12px;margin-top:24px">
-            <button type="submit" class="btn btn-primary btn-lg" 
+          <div class="form-actions-row">
+            <button type="submit" class="btn btn-secondary btn-lg flex-btn" (click)="isDraftSubmit = true"
                     [disabled]="loading || !eventForm.valid || (seatMapEnabled && (!seatRows || !seatColumns || seatRows > 500 || seatColumns > 100)) || selectedFiles.length === 0">
-              @if (loading) {
+              @if (loading && isDraftSubmit) {
                 <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
-              } @else { 🚀 Create Event }
+              } @else { 📝 Save as Draft }
             </button>
-            @if (seatMapEnabled && seatRows && seatRows > 500) {
-              <div style="color:#ef4444;font-size:0.85rem;margin-top:8px">Maximum 500 rows allowed.</div>
-            }
-            <button type="button" class="btn btn-secondary btn-lg" (click)="cancel()">Cancel</button>
+  
+            <button type="submit" class="btn btn-primary btn-lg flex-btn" (click)="isDraftSubmit = false"
+                    [disabled]="loading || !eventForm.valid || (seatMapEnabled && (!seatRows || !seatColumns || seatRows > 500 || seatColumns > 100)) || selectedFiles.length === 0">
+              @if (loading && !isDraftSubmit) {
+                <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
+              } @else { 🚀 Publish Event }
+            </button>
+  
+            <button type="button" class="btn btn-secondary btn-sm cancel-btn" (click)="cancel()">Cancel</button>
           </div>
+
+          @if (seatMapEnabled && seatRows && seatRows > 500) {
+            <div style="color:#ef4444;font-size:0.85rem;margin-top:8px;text-align:center">Maximum 500 rows allowed.</div>
+          }
         </form>
       </div>
     </div>
@@ -287,6 +315,22 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
     }
   `,
   styles: [`
+    .form-card { padding: 40px; max-width: 760px; margin: 0 auto; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .form-grid > * { min-width: 0; } /* prevents grid children from overflowing their cell */
+    .form-grid input[type="datetime-local"] { width: 100%; box-sizing: border-box; }
+    .form-actions-row { 
+      display: flex; gap: 16px; margin-top: 32px; align-items: center; 
+    }
+    .flex-btn { flex: 1; display: flex; justify-content: center; align-items: center; gap: 8px; }
+    .cancel-btn { 
+      flex: 0 0 auto; padding: 8px 24px; height: 48px; min-width: 100px;
+      background: rgba(255, 255, 255, 0.05) !important;
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
+      color: var(--text-muted) !important;
+    }
+    .cancel-btn:hover { background: rgba(255, 255, 255, 0.1) !important; color: var(--text-primary) !important; }
+
     button:disabled {
       background: #374151 !important;
       color: #9ca3af !important;
@@ -475,7 +519,14 @@ import { ImageCropperComponent, CroppedEvent } from '../../../shared/image-cropp
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
+    @media (max-width: 700px) {
+      .form-card { padding: 20px 16px; }
+      .form-grid { grid-template-columns: 1fr !important; }
+      .form-actions { flex-direction: column; }
+      .form-actions .btn { width: 100%; justify-content: center; }
+    }
   `]
+
 })
 export class EventCreateComponent implements OnInit {
   title = '';
@@ -489,8 +540,10 @@ export class EventCreateComponent implements OnInit {
   ticketPrice: number | null = null;
   vipPrice: number | null = null;
   refundPolicy: 'REFUNDABLE' | 'NON_REFUNDABLE' = 'NON_REFUNDABLE';
+  isFreeEvent = false;
   loading = false;
   error = '';
+  isDraftSubmit = false;
 
   // Seat map
   seatMapEnabled = false;
@@ -505,7 +558,7 @@ export class EventCreateComponent implements OnInit {
   // File Uploads & Cropping
   selectedFiles: File[] = [];
   filePreviewUrls: string[] = [];
-  
+
   // Multiple files cropping queue
   pendingFilesToCrop: File[] = [];
   imageFile: File | null = null;
@@ -608,7 +661,7 @@ export class EventCreateComponent implements OnInit {
     // We allow multi-select, but we will crop them one by one.
     const newFiles = Array.from(files);
     const availableSlots = 5 - this.selectedFiles.length;
-    
+
     if (newFiles.length > availableSlots) {
       this.error = 'You can only upload a maximum of 5 images.';
       // Take only what fits
@@ -634,7 +687,7 @@ export class EventCreateComponent implements OnInit {
 
     const fileToCrop = this.pendingFilesToCrop.shift()!;
     this.currentProcessingFileName = fileToCrop.name;
-    
+
     // Pass the raw File object directly to ngx-image-cropper
     this.imageFile = fileToCrop;
   }
@@ -644,13 +697,13 @@ export class EventCreateComponent implements OnInit {
     const ext = this.currentProcessingFileName.split('.').pop() || 'jpg';
     const baseName = this.currentProcessingFileName.substring(0, this.currentProcessingFileName.lastIndexOf('.'));
     const newFilename = `${baseName}_cropped.${ext}`;
-    
+
     // Convert Blob back to File
     const file = new File([event.blob], newFilename, { type: 'image/jpeg' });
-    
+
     this.selectedFiles.push(file);
     this.filePreviewUrls.push(event.objectUrl);
-    
+
     this.imageFile = null;
     this.processNextFileForCropping(); // Move to next file
   }
@@ -783,13 +836,14 @@ export class EventCreateComponent implements OnInit {
       event_end_time: this.eventEndTime ? new Date(this.eventEndTime).toISOString() : undefined,
       google_maps_url: this.googleMapsUrl || undefined,
       max_tickets: this.maxTickets!,
-      ticket_price: this.ticketPrice!,
-      vip_price: this.vipPrice || undefined,
+      ticket_price: this.isFreeEvent ? 0 : this.ticketPrice!,
+      vip_price: this.isFreeEvent ? undefined : this.vipPrice || undefined,
       seat_map_enabled: this.seatMapEnabled || undefined,
       seat_rows: this.seatMapEnabled ? this.seatRows! : undefined,
       seat_columns: this.seatMapEnabled ? this.seatColumns! : undefined,
       seat_layout: this.seatMapEnabled ? this.seatLayout : undefined,
       refund_policy: this.refundPolicy,
+      status: this.isDraftSubmit ? 'draft' : 'published',
     };
 
     this.eventService.createEvent(payload).subscribe({

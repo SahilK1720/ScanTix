@@ -19,6 +19,19 @@ export interface EventStaff {
   updated_at: string;
 }
 
+export interface ScannedAttendee {
+  ticket_id: string;
+  attendee_name: string;
+  attendee_email: string;
+  ticket_type: string;
+  scanned_at: string;
+}
+
+export interface ScannedAttendeesResponse {
+  staff_name: string;
+  attendees: ScannedAttendee[];
+}
+
 export interface AddStaffRequest {
   name: string;
   email: string;
@@ -55,6 +68,10 @@ export class StaffService {
 
   listStaff(eventId: string): Observable<EventStaff[]> {
     return this.http.get<EventStaff[]>(`${this.base}/organizer/events/${eventId}/staff`);
+  }
+
+  getScannedAttendees(eventId: string, staffId: string): Observable<ScannedAttendeesResponse> {
+    return this.http.get<ScannedAttendeesResponse>(`${this.base}/organizer/events/${eventId}/staff/${staffId}/scans`);
   }
 
   addStaff(eventId: string, req: AddStaffRequest): Observable<EventStaff> {

@@ -4,17 +4,19 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { EventService, ScanEvent } from '../../../core/services/event.service';
 import { TicketService } from '../../../core/services/ticket.service';
+import { PaymentService } from '../../../core/services/payment.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { SeatMapComponent } from '../../../shared/seat-map/seat-map.component';
 import { EventSeat, SeatService } from '../../../core/services/seat.service';
 import { environment } from '../../../../environments/environment';
 import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
 import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-modal/payment-modal.component';
+import { ShinyTextComponent } from '../../../shared/components/shiny-text/shiny-text.component';
 
 @Component({
   selector: 'app-event-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, SeatMapComponent, PaymentModalComponent],
+  imports: [CommonModule, RouterModule, FormsModule, SeatMapComponent, PaymentModalComponent, ShinyTextComponent],
   template: `
     <div class="page-container animate-fadeIn">
       @if (loading) {
@@ -28,9 +30,11 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
           <!-- Carousel or gallery view for multiple images -->
           <div style="margin-top:8px; display:flex; gap:16px; overflow-x:auto; padding-bottom:16px; scroll-snap-type: x mandatory">
             @for (img of event.image_urls; track img; let i = $index) {
-              <div class="event-banner animate-fadeIn" 
-                   [style]="getSafeStyle(img)"
-                   style="min-width:100%; height:450px; background-size:cover; background-position:center; border-radius:16px; border:1px solid rgba(255,255,255,0.05); scroll-snap-align: center">
+              <div class="event-banner animate-fadeIn" style="min-width:100%; height:450px; position:relative; border-radius:16px; border:1px solid rgba(255,255,255,0.05); overflow:hidden; scroll-snap-align: center;">
+                 <!-- Blurred backdrop -->
+                 <div [style]="getSafeStyle(img)" style="position:absolute; inset:-40px; background-size:cover; background-position:center; filter:blur(25px) brightness(0.6); opacity:0.8; z-index:0; transform: scale(1.1);"></div>
+                 <!-- Crisp foreground -->
+                 <div [style]="getSafeStyle(img)" style="position:absolute; inset:0; background-size:contain; background-repeat:no-repeat; background-position:center; z-index:1; box-shadow: 0 0 50px rgba(0,0,0,0.5);"></div>
               </div>
             }
           </div>
@@ -46,17 +50,36 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
             <div>
               <h1 style="font-size:2rem;margin-bottom:8px">{{ event.title }}</h1>
               <span class="badge" [class]="getStatusClass(event.status)">{{ event.status }}</span>
-              <span class="badge" [class]="event.refund_policy === 'REFUNDABLE' ? 'badge-success' : 'badge-danger'" style="margin-left:8px">
-                {{ event.refund_policy === 'REFUNDABLE' ? 'Refundable Event' : 'Non-Refundable Event' }}
-              </span>
+              @if (+event.ticket_price > 0) {
+                <span class="badge" [class]="event.refund_policy === 'REFUNDABLE' ? 'badge-success' : 'badge-danger'" style="margin-left:8px">
+                  {{ event.refund_policy === 'REFUNDABLE' ? 'Refundable Event' : 'Non-Refundable Event' }}
+                </span>
+              } @else {
+                <span class="badge" style="margin-left:8px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                  <app-shiny-text text="FREE Event" color="#10b981" shineColor="#6ee7b7" [speed]="2.5" [spread]="1.2"></app-shiny-text>
+                </span>
+              }
               @if (event.seat_map_enabled) {
                 <span class="badge badge-info" style="margin-left:8px">🪑 Seat Selection</span>
               }
             </div>
-            <div class="price-tag">
-              <div class="price-label">Starting at</div>
-              <div class="price-value">&#8377;{{ event.ticket_price }}</div>
-            </div>
+            @if (+event.ticket_price === 0) {
+              <div style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:16px 32px;text-align:center;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(16,185,129,0.1)">
+                <app-shiny-text
+                  text="FREE"
+                  color="#077533ff"
+                  shineColor="#86debbff"
+                  [speed]="2.5"
+                  [spread]="1.2"
+                  style="font-weight:800;font-size:2.2rem;letter-spacing:0.05em"
+                ></app-shiny-text>
+              </div>
+            } @else {
+              <div class="price-tag">
+                <div class="price-label">Starting at</div>
+                <div class="price-value">&#8377;{{ event.ticket_price }}</div>
+              </div>
+            }
           </div>
 
           @if (event.description) {
@@ -148,26 +171,28 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
             }
           </div>
 
-          <div class="glass-card" style="padding:18px;margin-top:20px;background:rgba(255,255,255,0.03)">
-            @if (event.refund_policy === 'NON_REFUNDABLE') {
-              <p style="margin:0 0 8px;color:#fca5a5;font-weight:600">Non-Refundable Event</p>
-              <p style="margin:0;color:var(--text-secondary)">
-                Once a ticket is purchased, the attendee will not receive any refund if they cancel.
-              </p>
-            } @else {
-              <p style="margin:0 0 8px;color:#86efac;font-weight:600">Refundable Event</p>
-              <p style="margin:0;color:var(--text-secondary)">
-                If the attendee cancels their ticket, they will receive a full refund.
-              </p>
-              <p style="margin:10px 0 0;color:var(--text-muted)">
-                Refunds are allowed only if the ticket is cancelled at least 24 hours before the event start time.
-                If cancelled within 24 hours of the event start time, no refund will be issued.
-              </p>
-            }
-          </div>
+          @if (+event.ticket_price > 0) {
+            <div class="glass-card" style="padding:18px;margin-top:20px;background:rgba(255,255,255,0.03)">
+              @if (event.refund_policy === 'NON_REFUNDABLE') {
+                <p style="margin:0 0 8px;color:#fca5a5;font-weight:600">Non-Refundable Event</p>
+                <p style="margin:0;color:var(--text-secondary)">
+                  Once a ticket is purchased, the attendee will not receive any refund if they cancel.
+                </p>
+              } @else {
+                <p style="margin:0 0 8px;color:#86efac;font-weight:600">Refundable Event</p>
+                <p style="margin:0;color:var(--text-secondary)">
+                  If the attendee cancels their ticket, they will receive a full refund.
+                </p>
+                <p style="margin:10px 0 0;color:var(--text-muted)">
+                  Refunds are allowed only if the ticket is cancelled at least 24 hours before the event start time.
+                  If cancelled within 24 hours of the event start time, no refund will be issued.
+                </p>
+              }
+            </div>
+          }
 
           <!-- ── Purchase / Seat Section ──────────────────────────────────────── -->
-          @if (event.status !== 'cancelled' && auth.isAuthenticated) {
+          @if ((event.status === 'published' || (event.status === 'draft' && event.organizer_id === auth.currentUser?.id)) && auth.isAuthenticated) {
             <div class="glass-card" style="padding:24px;margin-top:32px;background:rgba(234,179,8,0.05);border-color:rgba(234,179,8,0.2)">
               @if (auth.isOrganizer) {
                 <div class="restriction-banner" style="padding:16px;margin-bottom:24px;border-radius:8px;font-size:0.9rem">
@@ -207,6 +232,8 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
                       @if (lockingSeats) {
                         <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
                         Locking seats...
+                      } @else if (getSubtotal() === 0) {
+                        🎫 Book Tickets
                       } @else {
                         Proceed to Payment
                       }
@@ -257,6 +284,8 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
                     @if (lockingSeats) {
                       <span class="spinner" style="width:18px;height:18px;border-width:2px"></span>
                       Holding tickets...
+                    } @else if (calculateTotal() === 0) { 
+                      🎫 Book Tickets 
                     } @else { 💳 Proceed to Payment }
                   </button>
                 }
@@ -270,23 +299,38 @@ import { PaymentModalComponent, PaymentDetails } from '../../../shared/payment-m
 
           <!-- ── Event Actions (Organizer Only) ────────────────────────── -->
           @if (event.organizer_id === auth.currentUser?.id && event.status !== 'cancelled') {
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:32px">
-              <div class="glass-card" style="padding:24px;border-color:rgba(16,185,129,0.2)">
-                <h3 style="margin-bottom:8px">💂 Staff & Analytics</h3>
-                <p style="color:var(--text-secondary);font-size:0.9rem">Manage your event staff and view detailed sales analytics.</p>
-                <a [routerLink]="['/analytics', event.id]" class="btn btn-secondary" style="margin-top:12px;width:100%">
-                  Go to Analytics →
-                </a>
-              </div>
-              <div class="glass-card" style="padding:24px;border-color:rgba(239,68,68,0.2)">
-                <h3 style="margin-bottom:8px">⚙️ Event Management</h3>
-                <p style="color:var(--text-secondary);font-size:0.9rem">Update event details or cancel if needed. Cancellation fees may apply.</p>
-                <div style="display:flex;gap:12px;margin-top:12px">
+            @if (event.status === 'draft') {
+              <div class="glass-card" style="padding:32px;border-color:rgba(234,179,8,0.3);margin-top:32px;text-align:center;background:rgba(234,179,8,0.05)">
+                <h3 style="margin-bottom:8px;font-size:1.5rem">📝 Draft Event</h3>
+                <p style="color:var(--text-secondary);font-size:1rem;margin-bottom:24px">This event is currently a draft and is not visible to the public. Publish it to start selling tickets!</p>
+                <div style="display:flex;gap:16px;justify-content:center;max-width:400px;margin:0 auto">
                   <a [routerLink]="['/events', event.id, 'edit']" class="btn btn-secondary" style="flex:1">Edit Event</a>
-                  <button class="btn btn-danger" style="flex:1" (click)="openCancelModal()">Cancel Event</button>
+                  <button class="btn btn-primary" (click)="publishEvent()" [disabled]="publishing" style="flex:1">
+                    @if (publishing) { <span class="spinner-sm"></span> Publishing... }
+                    @else { 🚀 Publish Event }
+                  </button>
+                </div>
+                @if (publishError) { <div class="alert alert-danger" style="margin-top:16px">{{ publishError }}</div> }
+              </div>
+            } @else {
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:32px">
+                <div class="glass-card" style="padding:24px;border-color:rgba(16,185,129,0.2)">
+                  <h3 style="margin-bottom:8px">💂 Staff & Analytics</h3>
+                  <p style="color:var(--text-secondary);font-size:0.9rem">Manage your event staff and view detailed sales analytics.</p>
+                  <a [routerLink]="['/analytics', event.id]" class="btn btn-secondary" style="margin-top:12px;width:100%">
+                    Go to Analytics →
+                  </a>
+                </div>
+                <div class="glass-card" style="padding:24px;border-color:rgba(239,68,68,0.2)">
+                  <h3 style="margin-bottom:8px">⚙️ Event Management</h3>
+                  <p style="color:var(--text-secondary);font-size:0.9rem">Update event details or cancel if needed. Cancellation fees may apply.</p>
+                  <div style="display:flex;gap:12px;margin-top:12px">
+                    <a [routerLink]="['/events', event.id, 'edit']" class="btn btn-secondary" style="flex:1">Edit Event</a>
+                    <button class="btn btn-danger" style="flex:1" (click)="openCancelModal()">Cancel Event</button>
+                  </div>
                 </div>
               </div>
-            </div>
+            }
           }
         </div>
       }
@@ -451,12 +495,17 @@ export class EventDetailComponent implements OnInit, OnDestroy {
   cancelling = false;
   cancelError = '';
 
+  // Publishing Drafts
+  publishing = false;
+  publishError = '';
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private eventService: EventService,
     private ticketService: TicketService,
     private seatService: SeatService,
+    private paymentService: PaymentService,
     public auth: AuthService,
     private cdr: ChangeDetectorRef,
     private sanitizer: DomSanitizer
@@ -528,10 +577,13 @@ export class EventDetailComponent implements OnInit, OnDestroy {
         this.lockingSeats = false;
         this.lockedSeatIds = resp.seats.map(s => s.id);
         this.lockedUntil = resp.locked_until;
+        
+        const totalAmount = this.getSubtotal();
+
         this.paymentDetails = {
-          baseAmount: this.getSubtotal(),
+          baseAmount: totalAmount,
           convenienceFee: 0,
-          totalAmount: this.getSubtotal(),
+          totalAmount: totalAmount,
           seats: this.selectedSeats,
           event: this.event!,
           lockedUntil: resp.locked_until
@@ -661,6 +713,8 @@ export class EventDetailComponent implements OnInit, OnDestroy {
     this.proceedToPaymentStandard();
   }
 
+
+
   getStatusClass(status: string): string {
     return status === 'published' ? 'badge-success' : status === 'draft' ? 'badge-warning' : status === 'cancelled' ? 'badge-danger' : 'badge-info';
   }
@@ -708,6 +762,31 @@ export class EventDetailComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.cancelling = false;
         this.cancelError = err.error?.message || 'Failed to cancel event. Please try again.';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  // Publish Draft method
+  publishEvent() {
+    if (!this.event) return;
+    this.publishing = true;
+    this.publishError = '';
+    this.eventService.updateEvent(this.event.id, { status: 'published' }).subscribe({
+      next: (updatedEvent) => {
+        this.publishing = false;
+        if (this.event) this.event.status = 'published';
+        this.purchaseSuccess = '✨ Event successfully published!';
+        this.cdr.detectChanges();
+        
+        setTimeout(() => {
+          this.purchaseSuccess = '';
+          this.cdr.detectChanges();
+        }, 4000);
+      },
+      error: (err) => {
+        this.publishing = false;
+        this.publishError = err.error?.message || 'Failed to publish event. Please try again.';
         this.cdr.detectChanges();
       }
     });

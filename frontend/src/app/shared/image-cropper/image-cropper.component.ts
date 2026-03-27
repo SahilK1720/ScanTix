@@ -232,14 +232,22 @@ export class ImageCropperComponent implements OnInit, AfterViewInit {
     const cropX = (canvas.width - cropWidth) / 2;
     const cropY = (canvas.height - cropHeight) / 2;
 
+    // Target a high-quality output resolution (e.g. 1920px wide)
+    const TARGET_WIDTH = 1920;
+    const TARGET_HEIGHT = TARGET_WIDTH / this.aspectRatio;
+    const scaleFactor = TARGET_WIDTH / cropWidth;
+
     // Create an off-screen canvas just for the cropped area
     const outputCanvas = document.createElement('canvas');
-    outputCanvas.width = cropWidth;
-    outputCanvas.height = cropHeight;
+    outputCanvas.width = TARGET_WIDTH;
+    outputCanvas.height = TARGET_HEIGHT;
     const outCtx = outputCanvas.getContext('2d')!;
 
-    // We draw the same way, but shifted by the crop box offset
+    // We draw the same way, but shifted by the crop box offset, scaled up to target
     outCtx.save();
+    
+    // Scale up the drawing context to the target resolution
+    outCtx.scale(scaleFactor, scaleFactor);
     
     // 1. Shift context so crop top-left is at 0,0
     outCtx.translate(-cropX, -cropY);

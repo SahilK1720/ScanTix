@@ -8,11 +8,13 @@ import { AuthService } from '../../../core/services/auth.service';
 import { LocationService, LocationSuggestion } from '../../../core/services/location.service';
 import { environment } from '../../../../environments/environment';
 import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
+import { ShinyTextComponent } from '../../../shared/components/shiny-text/shiny-text.component';
+import { TiltedCardComponent } from '../../../shared/components/tilted-card/tilted-card.component';
 
 @Component({
   selector: 'app-event-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, ShinyTextComponent, TiltedCardComponent],
   template: `
     <div class="page-container animate-fadeIn">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
@@ -111,20 +113,35 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
       } @else {
         <div class="grid-2">
           @for (event of filtered; track event.id) {
-            <a [routerLink]="['/events', event.id]" class="event-card glass-card" style="text-decoration:none;color:inherit;display:flex;flex-direction:column;overflow:hidden">
-              @if (event.image_urls && event.image_urls.length > 0) {
-                <div [style]="getSafeStyle(event.image_urls[0])"
-                     style="height:240px;width:100%;background-size:cover;background-position:center;border-bottom:1px solid rgba(255,255,255,0.08)">
-                </div>
-              }
-              <div class="event-card-body">
+            <app-tilted-card
+              [showTooltip]="false"
+              [showMobileWarning]="false"
+              [rotateAmplitude]="6"
+              [scaleOnHover]="1.02"
+              containerWidth="100%"
+              containerHeight="100%">
+              
+              <a [routerLink]="['/events', event.id]" class="event-card glass-card" style="text-decoration:none;color:inherit;display:flex;flex-direction:column;overflow:hidden; height:100%">
+                @if (event.image_urls && event.image_urls.length > 0) {
+                  <div [style]="getSafeStyle(event.image_urls[0])"
+                       style="height:240px;width:100%;background-size:cover;background-position:center;border-bottom:1px solid rgba(255,255,255,0.08)">
+                  </div>
+                }
+                
+                <div class="event-card-body" style="flex:1">
                 <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
                   <h3 style="font-size:1.15rem;font-family:'Poppins',sans-serif;line-height:1.3">{{ event.title }}</h3>
                 </div>
 
-                <span class="badge" [class]="event.refund_policy === 'REFUNDABLE' ? 'badge-success' : 'badge-danger'" style="margin-bottom:10px">
-                  {{ event.refund_policy === 'REFUNDABLE' ? 'Refundable Event' : 'Non-Refundable Event' }}
-                </span>
+                @if (+event.ticket_price > 0) {
+                  <span class="badge" [class]="event.refund_policy === 'REFUNDABLE' ? 'badge-success' : 'badge-danger'" style="margin-bottom:10px">
+                    {{ event.refund_policy === 'REFUNDABLE' ? 'Refundable Event' : 'Non-Refundable Event' }}
+                  </span>
+                } @else {
+                  <span class="badge" style="margin-bottom:10px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                    <app-shiny-text text="FREE Event" color="#10b981" shineColor="#6ee7b7" [speed]="2.5" [spread]="1.2"></app-shiny-text>
+                  </span>
+                }
 
                 @if (event.location) {
                   <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px">📍 {{ event.location }}</p>
@@ -138,7 +155,22 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
 
                 <div class="event-meta">
                   <div class="meta-item">📅 {{ event.event_date | date:'EEEE, MMM d, y' }} • {{ event.event_date | date:'h:mm a' }} IST</div>
-                  <div class="meta-item">💰 &#8377;{{ event.ticket_price }}</div>
+                  <div class="meta-item" style="display:flex;align-items:center">
+                    @if (+event.ticket_price === 0) {
+                      <div style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.2);padding:2px 8px;border-radius:4px;margin-top:-2.5px">
+                        <app-shiny-text
+                          text="FREE"
+                          color="#10b981"
+                          shineColor="#6ee7b7"
+                          [speed]="2.5"
+                          [spread]="1.2"
+                          style="font-weight:700;font-size:0.75rem;letter-spacing:0.05em"
+                        ></app-shiny-text>
+                      </div>
+                    } @else {
+                      💰 &#8377;{{ event.ticket_price }}
+                    }
+                  </div>
                   <div class="meta-item">🎟️ {{ event.max_tickets - event.tickets_sold }} left</div>
                 </div>
 
@@ -150,6 +182,7 @@ import { DomSanitizer, SafeStyle } from '@angular/platform-browser';
                 </p>
               </div>
             </a>
+            </app-tilted-card>
           }
         </div>
       }
