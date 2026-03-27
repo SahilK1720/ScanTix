@@ -1,6 +1,7 @@
 import { Component, Input, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { StaffService, EventStaff } from '../../../core/services/staff.service';
 import { environment } from '../../../../environments/environment';
 
@@ -25,7 +26,7 @@ export function timeAgo(dateStr: string | null): string {
 @Component({
   selector: 'app-staff-management',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   template: `
     <!-- Toast notification -->
     @if (toast) {
@@ -42,25 +43,25 @@ export function timeAgo(dateStr: string | null): string {
 
       <!-- Add Staff Form -->
       <form [formGroup]="form" (ngSubmit)="onSubmit()" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:32px">
-        <div class="form-group" style="flex:1;min-width:160px">
+        <div class="form-group" style="flex:1;min-width:160px;position:relative">
           <label>Name</label>
           <input class="form-control" formControlName="name" placeholder="Enter Name" />
           @if (form.get('name')?.invalid && form.get('name')?.touched) {
-            <span style="color:var(--danger);font-size:0.78rem">Name is required</span>
+            <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Name is required</span>
           }
         </div>
-        <div class="form-group" style="flex:1;min-width:200px">
+        <div class="form-group" style="flex:1;min-width:200px;position:relative">
           <label>Email</label>
           <input class="form-control" formControlName="email" type="email" placeholder="Enter Email" />
           @if (form.get('email')?.invalid && form.get('email')?.touched) {
-            <span style="color:var(--danger);font-size:0.78rem">Valid email required</span>
+            <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Valid email required</span>
           }
         </div>
-        <div class="form-group" style="flex:1;min-width:160px">
+        <div class="form-group" style="flex:1;min-width:160px;position:relative">
           <label>Phone</label>
           <input class="form-control" formControlName="phone_number" placeholder="Enter Phone Number" />
           @if (form.get('phone_number')?.invalid && form.get('phone_number')?.touched) {
-            <span style="color:var(--danger);font-size:0.78rem">Valid phone required</span>
+            <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Valid phone required</span>
           }
         </div>
         <div class="form-group" style="flex:0 0 auto">
@@ -126,22 +127,23 @@ export function timeAgo(dateStr: string | null): string {
                     }
                   </td>
                   <td style="padding:12px;text-align:center">{{ s.tickets_scanned }}</td>
-                  <td style="padding:12px;display:flex;gap:8px;flex-wrap:wrap">
-                    @if (!s.is_revoked) {
-                      <button class="btn btn-sm" style="background:rgba(239,68,68,0.15);color:var(--danger);border:1px solid rgba(239,68,68,0.3);padding:4px 10px;font-size:0.78rem"
-                              (click)="revoke(s)" [disabled]="s['_busy']">
-                        Revoke
-                      </button>
-                    } @else {
-                      <button class="btn btn-sm" style="background:rgba(16,185,129,0.15);color:var(--success);border:1px solid rgba(16,185,129,0.3);padding:4px 10px;font-size:0.78rem"
-                              (click)="restore(s)" [disabled]="s['_busy']">
-                        Restore
-                      </button>
-                    }
-                    <button class="btn btn-sm" style="background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid var(--border-glass);padding:4px 10px;font-size:0.78rem"
-                            (click)="remove(s)" [disabled]="s['_busy']">
-                      Remove
-                    </button>
+                  <td style="padding:12px">
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <a [routerLink]="['/my-events', eventId, 'staff', s.id, 'scans']" target="_blank" class="btn btn-sm" style="background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);padding:4px 10px;font-size:0.78rem;text-decoration:none;white-space:nowrap">
+                        View Scans
+                      </a>
+                      @if (!s.is_revoked) {
+                        <button class="btn btn-sm" style="background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid rgba(239,68,68,0.25);padding:4px 10px;font-size:0.78rem;white-space:nowrap"
+                                (click)="revoke(s)" [disabled]="s['_busy']">
+                          Revoke
+                        </button>
+                      } @else {
+                        <button class="btn btn-sm" style="background:rgba(16,185,129,0.1);color:var(--success);border:1px solid rgba(16,185,129,0.25);padding:4px 10px;font-size:0.78rem;white-space:nowrap"
+                                (click)="restore(s)" [disabled]="s['_busy']">
+                          Restore
+                        </button>
+                      }
+                    </div>
                   </td>
                 </tr>
               }
@@ -153,7 +155,14 @@ export function timeAgo(dateStr: string | null): string {
   `
 })
 export class StaffManagementComponent implements OnInit {
-  @Input() eventId!: string;
+  private _eventId: string = '';
+  @Input() set eventId(val: string) {
+    if (val && val !== this._eventId) {
+      this._eventId = val;
+      this.loadStaff();
+    }
+  }
+  get eventId(): string { return this._eventId; }
 
   form: FormGroup;
   staffList: (EventStaff & { _busy?: boolean })[] = [];
@@ -174,9 +183,7 @@ export class StaffManagementComponent implements OnInit {
     });
   }
 
-  ngOnInit() {
-    this.loadStaff();
-  }
+  ngOnInit() {}
 
   loadStaff() {
     this.loading = true;

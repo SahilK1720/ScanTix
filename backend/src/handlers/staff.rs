@@ -498,3 +498,47 @@ pub async fn public_scanner_info(
         staff_name: staff.name,
     }))
 }
+
+// ─── 4.6  GET /api/organizer/events/:eventId/staff/:staffId/scans ────────────
+
+pub async fn list_scanned_attendees(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((event_id, staff_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    verify_event_ownership(&state, event_id, claims.sub).await?;
+
+    let staff_name = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM event_staff WHERE id = $1 AND event_id = $2"
+    )
+    .bind(staff_id)
+    .bind(event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or_else(|| "Unknown Staff".to_string());
+
+    let attendees = sqlx::query_as::<_, crate::models::staff::ScannedAttendee>(
+        r#"
+        SELECT 
+            st.ticket_id,
+            u.full_name as attendee_name,
+            u.email as attendee_email,
+            t.ticket_type,
+            st.scanned_at
+        FROM scanned_tickets st
+        JOIN tickets t ON st.ticket_id = t.id
+        JOIN users u ON t.user_id = u.id
+        WHERE st.staff_id = $1 AND st.event_id = $2
+        ORDER BY st.scanned_at DESC
+        "#,
+    )
+    .bind(staff_id)
+    .bind(event_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(crate::models::staff::ScannedAttendeesResponse {
+        staff_name,
+        attendees,
+    }).into_response())
+}

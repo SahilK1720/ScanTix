@@ -88,6 +88,7 @@ pub struct TicketWithQr {
     pub event_title: String,
     pub event_image: Option<String>,
     pub event_date: DateTime<Utc>,
+    pub gate_opens_at: Option<DateTime<Utc>>,
     pub seat_label: Option<String>,
     pub event_status: Option<String>,
 }

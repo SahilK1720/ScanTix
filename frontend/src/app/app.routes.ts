@@ -40,6 +40,11 @@ export const routes: Routes = [
         canActivate: [authGuard, organizerGuard]
     },
     {
+        path: 'my-events/:id/staff/:staffId/scans',
+        loadComponent: () => import('./features/staff/staff-scans/staff-scans.component').then(m => m.StaffScansComponent),
+        canActivate: [authGuard, organizerGuard]
+    },
+    {
         path: 'dashboard',
         loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
         canActivate: [authGuard, organizerGuard]

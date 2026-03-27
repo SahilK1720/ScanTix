@@ -105,23 +105,29 @@ pub async fn verify_and_book(
     Extension(claims): Extension<Claims>,
     Json(input): Json<VerifyPaymentRequest>,
 ) -> Result<Json<Vec<Ticket>>, AppError> {
-    // ── 1. Verify Razorpay signature ─────────────────────────────────────────
-    let signature_payload = format!("{}|{}", input.razorpay_order_id, input.razorpay_payment_id);
-    
-    tracing::debug!("Verifying payment: order_id={}, payment_id={}", input.razorpay_order_id, input.razorpay_payment_id);
-    
-    type HmacSha256 = Hmac<Sha256>;
-    let mut mac = HmacSha256::new_from_slice(state.config.razorpay_key_secret.as_bytes())
-        .map_err(|_| AppError::Internal("HMAC key error".to_string()))?;
-    mac.update(signature_payload.as_bytes());
-    let computed = hex::encode(mac.finalize().into_bytes());
+    let is_free_request = input.razorpay_order_id == "FREE";
 
-    if computed != input.razorpay_signature {
-        tracing::error!("Signature mismatch! Computed: {}, Received: {}", computed, input.razorpay_signature);
-        return Err(AppError::Forbidden("Payment signature verification failed".to_string()));
+    if !is_free_request {
+        // ── 1. Verify Razorpay signature ─────────────────────────────────────────
+        let signature_payload = format!("{}|{}", input.razorpay_order_id, input.razorpay_payment_id);
+        
+        tracing::debug!("Verifying payment: order_id={}, payment_id={}", input.razorpay_order_id, input.razorpay_payment_id);
+        
+        type HmacSha256 = Hmac<Sha256>;
+        let mut mac = HmacSha256::new_from_slice(state.config.razorpay_key_secret.as_bytes())
+            .map_err(|_| AppError::Internal("HMAC key error".to_string()))?;
+        mac.update(signature_payload.as_bytes());
+        let computed = hex::encode(mac.finalize().into_bytes());
+
+        if computed != input.razorpay_signature {
+            tracing::error!("Signature mismatch! Computed: {}, Received: {}", computed, input.razorpay_signature);
+            return Err(AppError::Forbidden("Payment signature verification failed".to_string()));
+        }
+
+        tracing::info!("Payment signature verified for order: {}", input.razorpay_order_id);
+    } else {
+        tracing::info!("Processing free ticket request for event: {}", input.event_id);
     }
-
-    tracing::info!("Payment signature verified for order: {}", input.razorpay_order_id);
 
     // ── 2. Fetch event ────────────────────────────────────────────────────────
     let event = sqlx::query_as::<_, crate::models::event::Event>("SELECT * FROM events WHERE id = $1")
@@ -149,6 +155,10 @@ pub async fn verify_and_book(
         .fetch_one(&mut *tx)
         .await
         .unwrap_or(event.ticket_price * rust_decimal::Decimal::from(seat_ids.len() as i64));
+
+        if is_free_request && total_amount > rust_decimal::Decimal::ZERO {
+            return Err(AppError::BadRequest("Payment is required for this event. It is not free.".to_string()));
+        }
 
         let order = sqlx::query_as::<_, Order>(
               "INSERT INTO orders (user_id, event_id, total_amount, quantity, ticket_type, order_status, razorpay_order_id, razorpay_payment_id) 
@@ -221,6 +231,10 @@ pub async fn verify_and_book(
             event.ticket_price
         };
         let total = unit_price * rust_decimal::Decimal::from(quantity);
+
+        if is_free_request && total > rust_decimal::Decimal::ZERO {
+            return Err(AppError::BadRequest("Payment is required for this event. It is not free.".to_string()));
+        }
 
         let mut tx = state.db.begin().await?;
 

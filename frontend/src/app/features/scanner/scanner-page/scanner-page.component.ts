@@ -37,7 +37,7 @@ export type ScanResultState = 'IDLE' | 'CALLING_API' | 'VALID' | 'ALREADY_SCANNE
         <h2 style="color:#6b7280;margin-bottom:8px">Event Ended</h2>
         <p style="color:#aaa;max-width:360px;text-align:center">{{ errorMessage }}</p>
       </div>
-      <div *ngIf="pageState === 'SCANNING'" style="display:flex;flex-direction:column;height:100%">
+      <div *ngIf="pageState === 'SCANNING'" style="display:flex;flex-direction:column;flex:1">
         <div class="scanner-header">
           <div>
             <div class="event-name">{{ scannerInfo?.event_name }}</div>
@@ -45,19 +45,30 @@ export type ScanResultState = 'IDLE' | 'CALLING_API' | 'VALID' | 'ALREADY_SCANNE
           </div>
           <div class="session-counter">Scans: <strong>{{ sessionCount }}</strong></div>
         </div>
-        <div class="video-wrapper">
-          <video #videoEl autoplay playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
-          <div *ngIf="scanResult === 'CALLING_API'" class="result-overlay calling"><div class="spinner-lg"></div></div>
-          <div *ngIf="scanResult === 'VALID'" class="result-overlay green">
-            <div class="result-icon">✅</div>
-            <div class="result-label">Valid Ticket</div>
-            <div *ngIf="attendeeName" class="attendee-name">{{ attendeeName }}</div>
-          </div>
-          <div *ngIf="scanResult === 'ALREADY_SCANNED'" class="result-overlay yellow">
-            <div class="result-icon">⚠️</div><div class="result-label">Already Scanned</div>
-          </div>
-          <div *ngIf="scanResult === 'INVALID'" class="result-overlay red">
-            <div class="result-icon">❌</div><div class="result-label">Invalid Ticket</div>
+        <div class="video-container">
+          <div class="video-wrapper">
+            <video #videoEl autoplay playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
+            
+            <!-- Floating QR Guide Corner Indicators -->
+            <div class="qr-guide">
+              <div class="corner-indicator top-left"></div>
+              <div class="corner-indicator top-right"></div>
+              <div class="corner-indicator bottom-left"></div>
+              <div class="corner-indicator bottom-right"></div>
+            </div>
+
+            <div *ngIf="scanResult === 'CALLING_API'" class="result-overlay calling"><div class="spinner-lg"></div></div>
+            <div *ngIf="scanResult === 'VALID'" class="result-overlay green">
+              <div class="result-icon">✅</div>
+              <div class="result-label">Success</div>
+              <div *ngIf="attendeeName" class="attendee-name">{{ attendeeName }}</div>
+            </div>
+            <div *ngIf="scanResult === 'ALREADY_SCANNED'" class="result-overlay yellow">
+              <div class="result-icon">⚠️</div><div class="result-label">Already Used</div>
+            </div>
+            <div *ngIf="scanResult === 'INVALID'" class="result-overlay red">
+              <div class="result-icon">❌</div><div class="result-label">Invalid</div>
+            </div>
           </div>
         </div>
         <div *ngIf="cameraError" class="camera-error">
@@ -84,16 +95,44 @@ export type ScanResultState = 'IDLE' | 'CALLING_API' | 'VALID' | 'ALREADY_SCANNE
     .event-date { font-size:0.82rem; color:#aaa; margin-top:2px; }
     .session-counter { font-size:0.88rem; color:#aaa; }
     .session-counter strong { color:#a78bfa; font-size:0.88rem; }
-    .video-wrapper { flex:1; position:relative; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
-    .result-overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:12px; animation:fadeIn 0.2s ease; }
-    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-    .result-overlay.green  { background:rgba(16,185,129,0.88); }
-    .result-overlay.yellow { background:rgba(245,158,11,0.88); }
-    .result-overlay.red    { background:rgba(239,68,68,0.88); }
-    .result-overlay.calling { background:rgba(0,0,0,0.6); }
-    .result-icon { font-size:4rem; margin-bottom:12px; }
-    .result-label { font-size:1.4rem; font-weight:700; }
-    .attendee-name { font-size:1rem; margin-top:8px; opacity:0.9; }
+    .video-container { 
+      flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; 
+      background: #000;
+    }
+    .video-wrapper { 
+      position: relative; width: 100%; max-width: 450px; 
+      aspect-ratio: 4 / 3; overflow: hidden; border-radius: 24px;
+      box-shadow: 0 0 40px rgba(0,0,0,0.8), 0 0 1px 1px rgba(255,255,255,0.1); 
+    }
+
+    /* Corner Guide Styles */
+    .qr-guide {
+      position: absolute; top: 50%; left: 50%; width: 200px; height: 200px;
+      transform: translate(-50%, -50%);
+      pointer-events: none; z-index: 10;
+    }
+    .corner-indicator {
+      position: absolute; width: 32px; height: 32px;
+      border-color: var(--success); border-style: solid;
+    }
+    .top-left { top: 0; left: 0; border-width: 4px 0 0 4px; border-top-left-radius: 6px; }
+    .top-right { top: 0; right: 0; border-width: 4px 4px 0 0; border-top-right-radius: 6px; }
+    .bottom-left { bottom: 0; left: 0; border-width: 0 0 4px 4px; border-bottom-left-radius: 6px; }
+    .bottom-right { bottom: 0; right: 0; border-width: 0 4px 4px 0; border-bottom-right-radius: 6px; }
+
+    .result-overlay { 
+      position: absolute; inset: 0; display: flex; flex-direction: column; 
+      align-items: center; justify-content: center; z-index: 20; 
+      backdrop-filter: blur(4px); animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(1.05); } to { opacity: 1; transform: scale(1); } }
+    .result-overlay.green  { background: rgba(16, 185, 129, 0.9); }
+    .result-overlay.yellow { background: rgba(245, 158, 11, 0.9); }
+    .result-overlay.red    { background: rgba(239, 68, 68, 0.9); }
+    .result-overlay.calling { background: rgba(0, 0, 0, 0.7); }
+    .result-icon { font-size: 3.5rem; margin-bottom: 8px; }
+    .result-label { font-size: 1.25rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+    .attendee-name { font-size: 0.95rem; margin-top: 4px; opacity: 0.95; font-weight: 500; }
     .camera-error { margin:0 16px 16px; padding:16px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); border-radius:8px; color:#fca5a5; font-size:0.9rem; text-align:center; flex-shrink:0; }
     .manual-input { display:flex; gap:8px; padding:12px 16px; background:rgba(255,255,255,0.03); border-top:1px solid rgba(255,255,255,0.08); flex-shrink:0; }
     .qr-input { flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:10px 14px; color:#fff; font-size:0.9rem; outline:none; }
@@ -120,7 +159,7 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
   private frameLoopId: number | null = null;
   private stream: MediaStream | null = null;
 
-  constructor(private route: ActivatedRoute, private staffService: StaffService, private cdr: ChangeDetectorRef) {}
+  constructor(private route: ActivatedRoute, private staffService: StaffService, private cdr: ChangeDetectorRef) { }
 
   ngOnInit() {
     this.accessToken = this.route.snapshot.paramMap.get('accessToken') || '';
@@ -156,40 +195,18 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
       const video = this.videoEl?.nativeElement;
       if (!video) { this.cameraError = true; this.cdr.detectChanges(); return; }
 
-      // Request camera permission explicitly
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
       });
       video.srcObject = this.stream;
       await video.play();
 
-      // Dynamically import zxing decoder
       const { BrowserMultiFormatReader } = await import('@zxing/browser');
       this.codeReader = new BrowserMultiFormatReader();
 
-      // Use a canvas-based frame loop for reliable detection
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
-
-      const tick = () => {
-        if (this.pageState !== 'SCANNING') return;
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          try {
-            const result = this.codeReader.decodeFromCanvas(canvas);
-            if (result && !this.scanning) {
-              // Null out frameLoopId before pausing so scheduleReset can restart the loop
-              this.frameLoopId = null;
-              this.onQrDetected(result.getText());
-              return; // pause loop during API call; scheduleReset restores it
-            }
-          } catch { /* no QR in frame — normal, keep looping */ }
-        }
-        this.frameLoopId = requestAnimationFrame(tick);
-      };
-      this.frameLoopId = requestAnimationFrame(tick);
+      this.startFrameLoop(canvas, ctx);
     } catch (err) {
       console.error('Camera error:', err);
       this.cameraError = true;
@@ -197,10 +214,32 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
     }
   }
 
+  private startFrameLoop(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+    const video = this.videoEl?.nativeElement;
+    const tick = () => {
+      if (this.pageState !== 'SCANNING') return;
+      if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          const result = this.codeReader?.decodeFromCanvas(canvas);
+          if (result && !this.scanning) {
+            this.frameLoopId = null; // null out so scheduleReset knows the loop is paused
+            this.onQrDetected(result.getText());
+            return; // pause loop during API call; scheduleReset restores it
+          }
+        } catch { /* no QR in frame — normal */ }
+      }
+      this.frameLoopId = requestAnimationFrame(tick);
+    };
+    this.frameLoopId = requestAnimationFrame(tick);
+  }
+
   private stopCamera() {
     if (this.frameLoopId !== null) { cancelAnimationFrame(this.frameLoopId); this.frameLoopId = null; }
     if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
-    try { this.codeReader?.reset?.(); } catch {}
+    try { this.codeReader?.reset?.(); } catch { }
   }
 
   private onQrDetected(qrData: string) {
@@ -226,24 +265,11 @@ export class ScannerPageComponent implements OnInit, OnDestroy {
     if (this.resetTimer) clearTimeout(this.resetTimer);
     this.resetTimer = setTimeout(() => {
       this.scanResult = 'IDLE'; this.attendeeName = null; this.scanning = false;
-      // Resume frame loop after reset
+      // Resume frame loop — frameLoopId is null only when loop was paused by onQrDetected
       if (this.frameLoopId === null && this.stream && this.pageState === 'SCANNING') {
-        const video = this.videoEl?.nativeElement;
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d')!;
-        const tick = () => {
-          if (this.pageState !== 'SCANNING') return;
-          if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            try {
-              const result = this.codeReader?.decodeFromCanvas(canvas);
-              if (result && !this.scanning) { this.onQrDetected(result.getText()); return; }
-            } catch {}
-          }
-          this.frameLoopId = requestAnimationFrame(tick);
-        };
-        this.frameLoopId = requestAnimationFrame(tick);
+        this.startFrameLoop(canvas, ctx);
       }
       this.cdr.detectChanges();
     }, 2500);

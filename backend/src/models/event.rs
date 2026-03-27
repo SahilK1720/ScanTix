@@ -50,6 +50,7 @@ pub struct CreateEvent {
     pub image_urls: Option<Vec<String>>,
     pub google_maps_url: Option<String>,
     pub refund_policy: String,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

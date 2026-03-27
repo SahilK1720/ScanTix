@@ -68,6 +68,10 @@ pub fn create_router(state: AppState) -> Router {
             get(handlers::staff::list_staff).post(handlers::staff::add_staff),
         )
         .route(
+            "/api/organizer/events/:eventId/staff/:staffId/scans",
+            get(handlers::staff::list_scanned_attendees),
+        )
+        .route(
             "/api/organizer/events/:eventId/staff/:staffId",
             delete(handlers::staff::delete_staff),
         )

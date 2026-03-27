@@ -16,8 +16,8 @@ import { StaffManagementComponent } from '../../staff/staff-management/staff-man
           <h1>📊 <span class="gradient-text">Sales Analytics</span></h1>
           <p>{{ stats?.title || 'Loading event...' }}</p>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--success)">
-          <span class="live-dot"></span> Live · updates every 5s
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--success);font-weight:bold">
+          <span class="live-dot"></span> Live
         </div>
       </div>
 
@@ -118,9 +118,7 @@ import { StaffManagementComponent } from '../../staff/staff-management/staff-man
           </div>
         </div>
 
-        <div style="text-align:center;margin-top:24px">
-          <a routerLink="/my-events" class="btn btn-secondary">← Back to My Events</a>
-        </div>
+
 
         <!-- Staff Management -->
         <h2 style="margin-top:40px;margin-bottom:0">🧑‍💼 <span class="gradient-text">Manage Staff</span></h2>
@@ -151,19 +149,29 @@ export class SalesDashboardComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit() {
-    const id = this.route.snapshot.paramMap.get('id')!;
-    this.eventId = id;
-    this.sub = interval(5000).pipe(
-      startWith(0),
-      switchMap(() => this.eventService.getEventStats(id))
-    ).subscribe({
-      next: s => {
-        this.stats = s;
-        this.cdr.detectChanges();
-      },
-      error: e => {
-        console.error('Failed to load stats', e);
-        this.cdr.detectChanges();
+    this.route.paramMap.subscribe(params => {
+      const id = params.get('id');
+      if (id && id !== this.eventId) {
+        this.eventId = id;
+        this.stats = null; // Show loading spinner for new event
+        
+        // Clean up previous subscription if any
+        this.sub?.unsubscribe();
+
+        // Start polling for the new event
+        this.sub = interval(5000).pipe(
+          startWith(0),
+          switchMap(() => this.eventService.getEventStats(id))
+        ).subscribe({
+          next: s => {
+            this.stats = s;
+            this.cdr.detectChanges();
+          },
+          error: e => {
+            console.error('Failed to load stats', e);
+            this.cdr.detectChanges();
+          }
+        });
       }
     });
   }

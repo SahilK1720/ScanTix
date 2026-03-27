@@ -14,8 +14,8 @@ import { AuthService } from '../../../core/services/auth.service';
       <div class="auth-card glass-card animate-fadeIn">
         <div class="auth-header">
           <span class="auth-icon">🎫</span>
-          <h1 class="gradient-text">Welcome Back</h1>
-          <p>Sign in to your ScanTix account</p>
+          <h1 class="revealed-color">Welcome Back</h1>
+          <p>Sign in to your PickMySeat account</p>
         </div>
 
         @if (error) {

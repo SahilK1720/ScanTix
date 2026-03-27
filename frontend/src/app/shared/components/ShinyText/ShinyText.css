@@ -1,0 +1,54 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   ShinyText CSS Definitions
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Add these animations globally or scoped as needed */
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.shiny-text {
+  /* Default variables */
+  --shiny-speed: 5s;
+  --shiny-delay: 0s;
+  --shiny-base-color: rgba(255, 255, 255, 0.7);
+  --shiny-highlight-color: #ffffff;
+  --shiny-spread: 2.5;
+  --shiny-direction: normal;
+  --shiny-iteration: infinite;
+
+  display: inline-block;
+  white-space: nowrap;
+  
+  /* Gradient configuration */
+  background: linear-gradient(
+    120deg,
+    var(--shiny-base-color) calc(50% - (100% / var(--shiny-spread))),
+    var(--shiny-highlight-color) 50%,
+    var(--shiny-base-color) calc(50% + (100% / var(--shiny-spread)))
+  );
+  background-size: 200% auto;
+  
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  
+  /* Applying CSS animation */
+  animation: shine var(--shiny-speed) linear var(--shiny-delay) var(--shiny-iteration) var(--shiny-direction);
+}
+
+.shiny-text.disabled {
+  animation: none;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  color: var(--shiny-base-color);
+  -webkit-text-fill-color: unset;
+}
+
+.shiny-text.pause-on-hover:hover {
+  animation-play-state: paused;
+}

@@ -4,6 +4,7 @@ import { EventSeat } from '../../core/services/seat.service';
 import { ScanEvent } from '../../core/services/event.service';
 import { environment } from '../../../environments/environment';
 import { PaymentService, RazorpayOrder } from '../../core/services/payment.service';
+import { ShinyTextComponent } from '../components/shiny-text/shiny-text.component';
 
 declare var Razorpay: any;
 
@@ -20,7 +21,7 @@ export interface PaymentDetails {
 @Component({
   selector: 'app-payment-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ShinyTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="modal-backdrop checkout-backdrop" (click)="onBackdropClick($event)">
@@ -78,7 +79,11 @@ export interface PaymentDetails {
             <div class="divider-dashed"></div>
             <div class="calc-row grand-total">
               <span>Total</span>
-              <span class="price-highlight">₹{{ payment.totalAmount | number:'1.2-2' }}</span>
+              @if (payment.totalAmount === 0) {
+                <app-shiny-text text="FREE" color="#10b981" shineColor="#34d399" [speed]="3" [spread]="1.5" className="price-highlight" style="font-size:1.5rem;letter-spacing:1px;font-weight:700"></app-shiny-text>
+              } @else {
+                <span class="price-highlight">₹{{ payment.totalAmount | number:'1.2-2' }}</span>
+              }
             </div>
           </div>
         </div>
@@ -336,7 +341,7 @@ export class PaymentModalComponent implements OnInit, OnDestroy {
       key: order.key_id,
       amount: order.amount,
       currency: order.currency,
-      name: 'ScanTix',
+      name: 'PickMySeat',
       description: `Tickets for ${this.payment.event.title}`,
       order_id: order.order_id,
       handler: (response: any) => {

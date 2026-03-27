@@ -15,7 +15,7 @@ import { AuthService } from '../../../core/services/auth.service';
         <div class="auth-header">
           <span class="auth-icon">🚀</span>
           <h1 class="gradient-text">Create Account</h1>
-          <p>Join ScanTix today</p>
+          <p>Join PickMySeat today</p>
         </div>
 
         @if (error) { <div class="alert alert-danger">{{ error }}</div> }

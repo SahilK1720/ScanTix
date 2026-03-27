@@ -1,0 +1,89 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   ScanTixFocus — character-sequential focus animation (TrueFocus pattern)
+   ────────────────────────────────────────────────────────────────────────── */
+
+.stf-root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  /* Prevents characters from wrapping */
+  white-space: nowrap;
+  /* Ensure the frame is positioned relative to this container */
+  isolation: isolate;
+}
+
+/* ── Individual part (word) ───────────────────────────────────────────────── */
+.stf-part {
+  display: inline-block;
+  /* Slight horizontal spacing so brackets don't feel cramped */
+  letter-spacing: 0.01em;
+  cursor: default;
+  user-select: none;
+  /* will-change for GPU compositing of blur transitions */
+  will-change: filter;
+  position: relative;
+  z-index: 1;
+  color: #ffffff; /* Default white for "My" and "Seats" */
+}
+
+/* ── Gradient modifier for "Pick" ─────────────────────────────────────────── */
+.stf-part.part-gradient {
+  background: linear-gradient(135deg, #facc15 0%, #eab308 50%, #ca8a04 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Focus frame (positioned absolutely over the container) ─────────────── */
+.stf-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 2;
+  /* Frame itself has no background — only corners are visible */
+  box-sizing: border-box;
+}
+
+/* ── Shared corner piece styles ─────────────────────────────────────────── */
+.stf-corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--stf-border-color, #4f8ef7);
+  border-style: solid;
+  /* Glow effect on the bracket lines */
+  filter: drop-shadow(0 0 4px var(--stf-glow-color, rgba(79, 142, 247, 0.6)));
+}
+
+/* Top-left */
+.stf-tl {
+  top: 0;
+  left: 0;
+  border-width: 2px 0 0 2px;
+  border-radius: 2px 0 0 0;
+}
+
+/* Top-right */
+.stf-tr {
+  top: 0;
+  right: 0;
+  border-width: 2px 2px 0 0;
+  border-radius: 0 2px 0 0;
+}
+
+/* Bottom-left */
+.stf-bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 2px 2px;
+  border-radius: 0 0 0 2px;
+}
+
+/* Bottom-right */
+.stf-br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 2px 2px 0;
+  border-radius: 0 0 2px 0;
+}

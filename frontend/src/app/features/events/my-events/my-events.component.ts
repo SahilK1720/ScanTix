@@ -11,30 +11,39 @@ import { AuthService } from '../../../core/services/auth.service';
   imports: [CommonModule, RouterModule, FormsModule],
   template: `
     <div class="page-container animate-fadeIn">
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:24px;margin-bottom:32px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:24px;">
         <div>
-          <h1>📋 <span class="gradient-text">My Events</span></h1>
-          <p>Manage and track your upcoming and past events.</p>
+          <h1 style="font-size:2.3rem;margin-bottom:8px;font-family:'Poppins', sans-serif">📋 <span class="gradient-text">My Events</span></h1>
+          <p style="color:var(--text-muted);font-size:1.05rem;max-width:500px;line-height:1.5">Manage your entire portfolio</p>
         </div>
-        <div style="display:flex;gap:12px">
-          <a routerLink="/organizer/bank-details" class="btn btn-secondary">🏦 Bank Details</a>
-          <a routerLink="/events/create" class="btn btn-primary">➕ Create Event</a>
+        <div style="display:flex;gap:16px">
+          <a routerLink="/organizer/bank-details" class="btn btn-secondary" style="height:48px;padding:0 24px;display:flex;align-items:center;gap:8px">🏦 Bank Details</a>
+          <a routerLink="/events/create" class="btn btn-primary" style="height:48px;padding:0 24px;display:flex;align-items:center;gap:8px">➕ Create Event</a>
         </div>
       </div>
 
-      <div class="tabs" style="margin-bottom:24px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;gap:32px">
-        <button class="tab-btn" [class.active]="activeTab === 'upcoming'" (click)="activeTab = 'upcoming'">Upcoming</button>
-        <button class="tab-btn" [class.active]="activeTab === 'past'" (click)="activeTab = 'past'">Past & Cancelled</button>
+      <div class="tabs-container" style="display:flex;justify-content:flex-start;margin-bottom:32px">
+        <div class="tabs-modern glass-card" style="display:inline-flex; padding:6px; border-radius:14px; gap:8px;">
+          <button class="tab-modern" [class.active]="activeTab === 'upcoming'" (click)="activeTab = 'upcoming'">
+            <span>🎪</span> Upcoming
+          </button>
+          <button class="tab-modern" [class.active]="activeTab === 'past'" (click)="activeTab = 'past'">
+            <span>📁</span> Past & Cancelled
+          </button>
+          <button class="tab-modern" [class.active]="activeTab === 'drafts'" (click)="activeTab = 'drafts'">
+            <span>📝</span> Drafts
+          </button>
+        </div>
       </div>
 
       @if (loading) {
         <div class="loading-overlay"><div class="spinner"></div><span>Loading your events...</span></div>
       } @else if (filteredEvents.length === 0) {
         <div class="glass-card" style="padding:60px;text-align:center">
-          <span style="font-size:4rem;display:block;margin-bottom:16px">{{ activeTab === 'upcoming' ? '🎪' : '📁' }}</span>
+          <span style="font-size:4rem;display:block;margin-bottom:16px">{{ activeTab === 'upcoming' ? '🎪' : activeTab === 'past' ? '📁' : '📝' }}</span>
           <h2>No {{ activeTab }} events found</h2>
           <p style="color:var(--text-secondary);margin-bottom:24px">
-            {{ activeTab === 'upcoming' ? 'Create your first event and start selling tickets!' : 'Any events you finish or cancel will appear here.' }}
+            {{ activeTab === 'upcoming' ? 'Create your first event and start selling tickets!' : activeTab === 'past' ? 'Any events you finish or cancel will appear here.' : 'Your drafted events will appear here.' }}
           </p>
           @if (activeTab === 'upcoming') {
             <a routerLink="/events/create" class="btn btn-primary">Create Event</a>
@@ -93,7 +102,9 @@ import { AuthService } from '../../../core/services/auth.service';
                   </div>
                   <div style="display:flex;gap:8px">
                     <a [routerLink]="['/events', event.id]" class="btn btn-secondary btn-sm">View</a>
-                    <a [routerLink]="['/analytics', event.id]" class="btn btn-secondary btn-sm">📊 Stats</a>
+                    @if (event.status !== 'draft') {
+                      <a [routerLink]="['/analytics', event.id]" class="btn btn-secondary btn-sm">📊 Stats</a>
+                    }
                     @if (event.status !== 'cancelled' && !isPast(event)) {
                       <div class="dropdown-container">
                         <button class="btn btn-secondary btn-sm" (click)="toggleDropdown(event.id, $event)">⚙️ Actions</button>
@@ -179,9 +190,46 @@ import { AuthService } from '../../../core/services/auth.service';
     .event-row:hover { border-color:rgba(234,179,8,0.25); transform: translateY(-2px); }
     .cancelled-row { opacity: 0.7; }
     
-    .tab-btn { background:none; border:none; color:var(--text-muted); padding:12px 4px; font-size:1rem; cursor:pointer; position:relative; }
-    .tab-btn.active { color:var(--text-primary); font-weight:600; }
-    .tab-btn.active::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:2px; background:var(--accent-primary); }
+    .tabs-modern {
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    .tab-modern {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .tab-modern:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .tab-modern.active {
+      background: rgba(234, 179, 8, 0.15);
+      color: var(--accent-primary);
+      box-shadow: 0 4px 15px rgba(234, 179, 8, 0.1);
+      border: 1px solid rgba(234, 179, 8, 0.25);
+    }
+    .tab-modern span {
+      font-size: 1.1rem;
+      filter: grayscale(100%);
+      opacity: 0.6;
+      transition: all 0.3s;
+    }
+    .tab-modern.active span {
+      filter: grayscale(0%);
+      opacity: 1;
+    }
 
     .dropdown-container { position:relative; }
     .dropdown-menu { position:absolute; right:0; top:calc(100% + 8px); width:200px; z-index:100; padding:8px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 10px 30px rgba(0,0,0,0.5); background:#1e1e24; border-radius:12px; }
@@ -207,7 +255,7 @@ import { AuthService } from '../../../core/services/auth.service';
 export class MyEventsComponent implements OnInit {
   events: ScanEvent[] = [];
   loading = true;
-  activeTab: 'upcoming' | 'past' = 'upcoming';
+  activeTab: 'upcoming' | 'past' | 'drafts' = 'upcoming';
   openDropdownId: string | null = null;
 
   // Cancellation
@@ -244,17 +292,23 @@ export class MyEventsComponent implements OnInit {
     const now = new Date();
     // Buffer of 2 hours for "upcoming" events that just started
     const buffer = 2 * 60 * 60 * 1000;
-    return this.events.filter(e => e.status !== 'cancelled' && new Date(e.event_date).getTime() + buffer > now.getTime());
+    return this.events.filter(e => e.status !== 'cancelled' && e.status !== 'draft' && new Date(e.event_date).getTime() + buffer > now.getTime());
   }
 
   get pastEvents() {
     const now = new Date();
     const buffer = 2 * 60 * 60 * 1000;
-    return this.events.filter(e => e.status === 'cancelled' || new Date(e.event_date).getTime() + buffer <= now.getTime());
+    return this.events.filter(e => e.status !== 'draft' && (e.status === 'cancelled' || new Date(e.event_date).getTime() + buffer <= now.getTime()));
+  }
+
+  get draftEvents() {
+    return this.events.filter(e => e.status === 'draft');
   }
 
   get filteredEvents() {
-    return this.activeTab === 'upcoming' ? this.upcomingEvents : this.pastEvents;
+    return this.activeTab === 'upcoming' ? this.upcomingEvents 
+         : this.activeTab === 'past' ? this.pastEvents 
+         : this.draftEvents;
   }
 
   get totalSold() { return this.upcomingEvents.reduce((s, e) => s + e.tickets_sold, 0); }
@@ -263,6 +317,7 @@ export class MyEventsComponent implements OnInit {
   
   getStatusBadgeClass(event: ScanEvent) {
     if (event.status === 'cancelled') return 'badge-danger';
+    if (event.status === 'draft') return 'badge-warning';
     if (this.isPast(event)) return 'badge-secondary';
     return event.status === 'published' ? 'badge-success' : 'badge-warning';
   }

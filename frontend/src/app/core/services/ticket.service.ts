@@ -52,6 +52,7 @@ export interface TicketWithQr {
     event_title: string;
     event_image: string | null;
     event_date: string;
+    gate_opens_at?: string | null;
     seat_label: string | null;
     event_status?: string;
 }

@@ -18,7 +18,7 @@ pub async fn list_events(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Event>>, AppError> {
     let events = sqlx::query_as::<_, Event>(
-        "SELECT * FROM events WHERE status != 'cancelled' AND event_date > CURRENT_TIMESTAMP ORDER BY event_date ASC"
+        "SELECT * FROM events WHERE status = 'published' AND event_date > CURRENT_TIMESTAMP ORDER BY event_date ASC"
     )
     .fetch_all(&state.db)
     .await?;
@@ -238,7 +238,7 @@ pub async fn create_event(
                                ticket_price, vip_price, max_tickets, status,
                        seat_map_enabled, seat_rows, seat_columns, seat_layout, image_urls,
                        google_maps_url, refund_policy)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'published', $12, $13, $14, $15, $16, $17, $18)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
            RETURNING *"#,
     )
     .bind(&input.title)
@@ -252,6 +252,7 @@ pub async fn create_event(
     .bind(input.ticket_price)
     .bind(input.vip_price)
     .bind(input.max_tickets)
+    .bind(input.status.clone().unwrap_or_else(|| "published".to_string()))
     .bind(seat_map_enabled)
     .bind(input.seat_rows)
     .bind(input.seat_columns)

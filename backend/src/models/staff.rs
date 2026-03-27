@@ -29,6 +29,21 @@ pub struct ScannedTicket {
     pub scanned_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ScannedAttendee {
+    pub ticket_id: Uuid,
+    pub attendee_name: String,
+    pub attendee_email: String,
+    pub ticket_type: String,
+    pub scanned_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScannedAttendeesResponse {
+    pub staff_name: String,
+    pub attendees: Vec<ScannedAttendee>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AddStaffRequest {
     pub name: String,

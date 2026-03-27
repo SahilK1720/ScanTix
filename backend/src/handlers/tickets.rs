@@ -441,6 +441,7 @@ pub async fn get_ticket_qr(
         event_title: String,
         event_images: Option<Vec<String>>,
         event_date: chrono::DateTime<chrono::Utc>,
+        gate_opens_at: Option<chrono::DateTime<chrono::Utc>>,
         event_status: String,
         event_location: String,
         google_maps_url: Option<String>,
@@ -458,6 +459,7 @@ pub async fn get_ticket_qr(
             e.title as event_title,
             e.image_urls as event_images,
             e.event_date as event_date,
+            e.gate_open_time as gate_opens_at,
             e.status as event_status,
             e.location as event_location,
             e.google_maps_url,
@@ -517,6 +519,7 @@ pub async fn get_ticket_qr(
         event_title: data.event_title,
         event_image: first_image,
         event_date: data.event_date,
+        gate_opens_at: data.gate_opens_at,
         seat_label,
         event_status: Some(data.event_status),
     }))
