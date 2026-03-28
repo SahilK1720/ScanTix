@@ -363,12 +363,15 @@ export class PaymentModalComponent implements OnInit, OnDestroy {
   }
 
   private openRazorpay(order: RazorpayOrder) {
+    // Sanitize event title to remove emojis and special characters that Razorpay rejects
+    const safeTitle = this.payment.event.title.replace(/[^\w\s-]/gi, '').trim();
+
     const options = {
       key: order.key_id,
       amount: order.amount,
       currency: order.currency,
       name: 'PickMySeat',
-      description: `Tickets for ${this.payment.event.title}`,
+      description: `Tickets for ${safeTitle.length > 0 ? safeTitle : 'Event'}`,
       order_id: order.order_id,
       handler: (response: any) => {
         this.verifyPayment(response, order);

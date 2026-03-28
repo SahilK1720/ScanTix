@@ -164,6 +164,7 @@ pub async fn get_event_stats(
     Ok(Json(EventStats {
         event_id: event.id,
         title: event.title,
+        status: event.status.clone(),
         seat_map_enabled: event.seat_map_enabled,
         tickets_sold: event.tickets_sold,
         max_tickets: event.max_tickets,

@@ -41,42 +41,54 @@ export function timeAgo(dateStr: string | null): string {
         Add scanner staff for this event. They'll receive a personal scanner link via email.
       </p>
 
-      <!-- Add Staff Form -->
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:32px">
-        <div class="form-group" style="flex:1;min-width:160px;position:relative">
-          <label>Name</label>
-          <input class="form-control" formControlName="name" placeholder="Enter Name" />
-          @if (form.get('name')?.invalid && form.get('name')?.touched) {
-            <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Name is required</span>
-          }
+      @if (eventStatus === 'cancelled') {
+        <div style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); border-radius:12px; padding:16px; margin-bottom:32px; display:flex; gap:12px; align-items:center;">
+          <span style="font-size:1.5rem">🚨</span>
+          <div>
+            <h4 style="margin:0; color:#fca5a5; font-size:1rem;">Event Cancelled</h4>
+            <p style="margin:4px 0 0; color:var(--text-secondary); font-size:0.85rem;">
+              You cannot add or manage staff members for a cancelled event.
+            </p>
+          </div>
         </div>
-        <div class="form-group" style="flex:1;min-width:200px;position:relative">
-          <label>Email</label>
-          <input class="form-control" formControlName="email" type="email" placeholder="Enter Email" />
-          @if (form.get('email')?.invalid && form.get('email')?.touched) {
-            <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Valid email required</span>
-          }
-        </div>
-        <div class="form-group" style="flex:1;min-width:160px;position:relative">
-          <label>Phone</label>
-          <input class="form-control" formControlName="phone_number" placeholder="Enter Phone Number" />
-          @if (form.get('phone_number')?.invalid && form.get('phone_number')?.touched) {
-            <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Valid phone required</span>
-          }
-        </div>
-        <div class="form-group" style="flex:0 0 auto">
-          <button class="btn btn-primary" type="submit" [disabled]="submitting || form.invalid">
-            @if (submitting) {
-              <span class="spinner" style="width:16px;height:16px;border-width:2px"></span>
-            } @else {
-              ➕ Add Staff
+      } @else {
+        <!-- Add Staff Form -->
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:32px">
+          <div class="form-group" style="flex:1;min-width:160px;position:relative">
+            <label>Name</label>
+            <input class="form-control" formControlName="name" placeholder="Enter Name" />
+            @if (form.get('name')?.invalid && form.get('name')?.touched) {
+              <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Name is required</span>
             }
-          </button>
-        </div>
-      </form>
+          </div>
+          <div class="form-group" style="flex:1;min-width:200px;position:relative">
+            <label>Email</label>
+            <input class="form-control" formControlName="email" type="email" placeholder="Enter Email" />
+            @if (form.get('email')?.invalid && form.get('email')?.touched) {
+              <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Valid email required</span>
+            }
+          </div>
+          <div class="form-group" style="flex:1;min-width:160px;position:relative">
+            <label>Phone</label>
+            <input class="form-control" formControlName="phone_number" placeholder="Enter Phone Number" />
+            @if (form.get('phone_number')?.invalid && form.get('phone_number')?.touched) {
+              <span style="color:var(--danger);font-size:0.78rem;position:absolute;bottom:-30px;left:0;white-space:nowrap">Valid phone required</span>
+            }
+          </div>
+          <div class="form-group" style="flex:0 0 auto">
+            <button class="btn btn-primary" type="submit" [disabled]="submitting || form.invalid">
+              @if (submitting) {
+                <span class="spinner" style="width:16px;height:16px;border-width:2px"></span>
+              } @else {
+                ➕ Add Staff
+              }
+            </button>
+          </div>
+        </form>
 
-      @if (formError) {
-        <div style="color:var(--danger);margin-bottom:16px;font-size:0.9rem">{{ formError }}</div>
+        @if (formError) {
+          <div style="color:var(--danger);margin-bottom:16px;font-size:0.9rem">{{ formError }}</div>
+        }
       }
 
       <!-- Staff Table -->
@@ -132,16 +144,18 @@ export function timeAgo(dateStr: string | null): string {
                       <a [routerLink]="['/my-events', eventId, 'staff', s.id, 'scans']" target="_blank" class="btn btn-sm" style="background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);padding:4px 10px;font-size:0.78rem;text-decoration:none;white-space:nowrap">
                         View Scans
                       </a>
-                      @if (!s.is_revoked) {
-                        <button class="btn btn-sm" style="background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid rgba(239,68,68,0.25);padding:4px 10px;font-size:0.78rem;white-space:nowrap"
-                                (click)="revoke(s)" [disabled]="s['_busy']">
-                          Revoke
-                        </button>
-                      } @else {
-                        <button class="btn btn-sm" style="background:rgba(16,185,129,0.1);color:var(--success);border:1px solid rgba(16,185,129,0.25);padding:4px 10px;font-size:0.78rem;white-space:nowrap"
-                                (click)="restore(s)" [disabled]="s['_busy']">
-                          Restore
-                        </button>
+                      @if (eventStatus !== 'cancelled') {
+                        @if (!s.is_revoked) {
+                          <button class="btn btn-sm" style="background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid rgba(239,68,68,0.25);padding:4px 10px;font-size:0.78rem;white-space:nowrap"
+                                  (click)="revoke(s)" [disabled]="s['_busy']">
+                            Revoke
+                          </button>
+                        } @else {
+                          <button class="btn btn-sm" style="background:rgba(16,185,129,0.1);color:var(--success);border:1px solid rgba(16,185,129,0.25);padding:4px 10px;font-size:0.78rem;white-space:nowrap"
+                                  (click)="restore(s)" [disabled]="s['_busy']">
+                            Restore
+                          </button>
+                        }
                       }
                     </div>
                   </td>
@@ -156,6 +170,7 @@ export function timeAgo(dateStr: string | null): string {
 })
 export class StaffManagementComponent implements OnInit {
   private _eventId: string = '';
+  @Input() eventStatus: string = 'published';
   @Input() set eventId(val: string) {
     if (val && val !== this._eventId) {
       this._eventId = val;

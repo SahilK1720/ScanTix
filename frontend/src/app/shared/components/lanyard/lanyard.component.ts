@@ -13,7 +13,7 @@ interface Stick { p0: Point; p1: Point; length: number; }
               style="pointer-events: none;"></canvas>
       
       <div #handle 
-           style="position: absolute; width: 64px; height: 120px; cursor: grab; pointer-events: auto; transform-origin: 50% 10px; transition: none;"
+           [style]="handleStyle"
            (mousedown)="onMouseDown($event)" 
            (touchstart)="onTouchStart($event)"></div>
     </div>
@@ -24,6 +24,14 @@ export class LanyardComponent implements AfterViewInit, OnDestroy {
   @ViewChild('handle') handleRef!: ElementRef<HTMLDivElement>;
   @Input() rightOffset = 60; // Positions the lanyard horizontally from the right
   @Input() lanyardLength = 120; // Target length for the rope
+
+  get isMobile(): boolean { return window.innerWidth < 768; }
+
+  get handleStyle(): string {
+    const w = this.isMobile ? 40 : 64;
+    const h = this.isMobile ? 75 : 120;
+    return `position:absolute;width:${w}px;height:${h}px;cursor:grab;pointer-events:auto;transform-origin:50% 10px;transition:none;`;
+  }
 
   private ctx!: CanvasRenderingContext2D;
   private points: Point[] = [];
@@ -156,31 +164,36 @@ export class LanyardComponent implements AfterViewInit, OnDestroy {
   onTouchStart(e: TouchEvent) {
       // Prevents scrolling while pulling lanyard
       e.preventDefault();
-      const rect = this.canvasRef.nativeElement.getBoundingClientRect();
-      this.startDrag(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
-  }
-  onTouchMove(e: TouchEvent) {
-      e.preventDefault();
-      if (this.isDragging && this.dragIndex !== -1) {
-          const x = e.touches[0].clientX;
-          const y = e.touches[0].clientY;
-          
-          // Smooth the mouse velocity
-          const filter = 0.3;
-          this.mouseVelX = (x - this.lastMouseX) * filter + this.mouseVelX * (1 - filter);
-          this.mouseVelY = (y - this.lastMouseY) * filter + this.mouseVelY * (1 - filter);
-          
-          this.mouseX = x;
-          this.mouseY = y;
-          this.lastMouseX = x;
-          this.lastMouseY = y;
+      const t = e.touches[0];
+      this.startDragAt(t.clientX, t.clientY);
 
-          this.points[this.dragIndex].x = this.mouseX;
-          this.points[this.dragIndex].y = this.mouseY;
-      }
+      const onMove = (ev: TouchEvent) => {
+        ev.preventDefault();
+        if (!this.isDragging || this.dragIndex === -1) return;
+        const tx = ev.touches[0].clientX;
+        const ty = ev.touches[0].clientY;
+        const filter = 0.3;
+        this.mouseVelX = (tx - this.lastMouseX) * filter + this.mouseVelX * (1 - filter);
+        this.mouseVelY = (ty - this.lastMouseY) * filter + this.mouseVelY * (1 - filter);
+        this.mouseX = tx;
+        this.mouseY = ty;
+        this.lastMouseX = tx;
+        this.lastMouseY = ty;
+        this.points[this.dragIndex].x = tx;
+        this.points[this.dragIndex].y = ty;
+      };
+      const onUp = () => {
+        this.isDragging = false;
+        this.dragIndex = -1;
+        document.body.classList.remove('no-select');
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend', onUp);
+      };
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
   }
 
-  private startDrag(x: number, y: number) {
+  private startDragAt(x: number, y: number) {
       this.isDragging = true;
       document.body.classList.add('no-select');
       this.dragIndex = this.points.length - 1;
@@ -188,8 +201,11 @@ export class LanyardComponent implements AfterViewInit, OnDestroy {
       this.lastMouseY = y;
       this.mouseVelX = 0;
       this.mouseVelY = 0;
-      
       if (this.handleRef) this.handleRef.nativeElement.style.cursor = 'grabbing';
+  }
+
+  private startDrag(x: number, y: number) {
+      this.startDragAt(x, y);
       
       const onMove = (e: MouseEvent) => {
           if (!this.isDragging) return;
@@ -322,6 +338,10 @@ export class LanyardComponent implements AfterViewInit, OnDestroy {
       this.ctx.translate(x, y);
       this.ctx.rotate(angle);
       
+      // Scale down badge on mobile
+      const scale = this.isMobile ? 0.6 : 1.0;
+      this.ctx.scale(scale, scale);
+
       // Shift the badge UP so the hole (at y=10) aligns with the rope end (0,0)
       this.ctx.translate(0, -10);
       
@@ -391,8 +411,12 @@ export class LanyardComponent implements AfterViewInit, OnDestroy {
 
       // Sync the invisible interactive handle with the drawn badge
       if (this.handleRef) {
+          const hw = this.isMobile ? 40 : 64;
+          const hh = this.isMobile ? 75 : 120;
           const h = this.handleRef.nativeElement;
-          h.style.left = `${x - 32}px`;
+          h.style.width = `${hw}px`;
+          h.style.height = `${hh}px`;
+          h.style.left = `${x - hw / 2}px`;
           h.style.top = `${y - 10}px`; // Align with pivot
           h.style.transform = `rotate(${angle}rad)`;
       }
