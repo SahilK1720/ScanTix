@@ -937,17 +937,23 @@ import { ShinyTextComponent } from '../../../shared/components/shiny-text/shiny-
       .event-header-row { flex-direction: column; gap: 16px; }
       .event-badges { gap: 6px; }
       .badge { font-size: 0.7rem; padding: 4px 10px; }
+      .badge-free-event { display: none !important; }
       
       /* Full width price boxes on mobile */
-      .price-free-box, .price-tag {
+      .price-tag {
         width: 100%;
         text-align: center;
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
         padding: 16px !important;
+        display: flex;
       }
-      .price-tag { display: flex; }
+      .price-free-box {
+        width: 100%;
+        justify-content: center;
+        padding: 16px !important;
+      }
       .price-label { margin-bottom: 0; font-size: 0.85rem; }
       .price-value { font-size: 1.6rem !important; }
 
