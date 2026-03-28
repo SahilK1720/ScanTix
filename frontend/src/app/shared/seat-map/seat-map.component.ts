@@ -43,7 +43,10 @@ interface SeatRow {
                  (mousedown)="startPanning($event)"
                  (mousemove)="pan($event)"
                  (mouseup)="stopPanning()"
-                 (mouseleave)="stopPanning()">
+                 (mouseleave)="stopPanning()"
+                 (touchstart)="startTouchPan($event)"
+                 (touchmove)="touchPan($event)"
+                 (touchend)="stopTouchPan()">
               <div class="zoom-pane" [ngStyle]="{'transform': 'scale(' + zoomLevel + ')'}">
                 @if (layoutType === 'stadium') {
                   <div class="stadium-container" [ngStyle]="getStadiumStyle()">
@@ -371,6 +374,37 @@ export class SeatMapComponent implements OnInit, OnDestroy {
     this.isPanning = false;
   }
 
+  private touchStartX = 0;
+  private touchStartY = 0;
+  private touchScrollLeft = 0;
+  private touchScrollTop = 0;
+
+  startTouchPan(e: TouchEvent) {
+    if (this.layoutType !== 'stadium') return;
+    const el = this.scrollContainer?.nativeElement;
+    if (!el) return;
+    this.isPanning = true;
+    this.touchStartX = e.touches[0].clientX;
+    this.touchStartY = e.touches[0].clientY;
+    this.touchScrollLeft = el.scrollLeft;
+    this.touchScrollTop = el.scrollTop;
+  }
+
+  touchPan(e: TouchEvent) {
+    if (!this.isPanning || this.layoutType !== 'stadium') return;
+    e.preventDefault();
+    const el = this.scrollContainer?.nativeElement;
+    if (!el) return;
+    const dx = this.touchStartX - e.touches[0].clientX;
+    const dy = this.touchStartY - e.touches[0].clientY;
+    el.scrollLeft = this.touchScrollLeft + dx;
+    el.scrollTop = this.touchScrollTop + dy;
+  }
+
+  stopTouchPan() {
+    this.isPanning = false;
+  }
+
   private loadSeats() {
     this.seatService.getEventSeats(this.eventId).subscribe({
       next: (seats) => {
@@ -411,7 +445,8 @@ export class SeatMapComponent implements OnInit, OnDestroy {
           // Wrap in timeout to let DOM render before fitting/centering
           setTimeout(() => {
             if (this.layoutType === 'stadium') {
-              this.zoomLevel = 0.5; 
+              // Use 30% zoom on mobile, 50% on desktop
+              this.zoomLevel = window.innerWidth < 768 ? 0.3 : 0.5;
               this.cdr.markForCheck();
               this.centerScroll();
             } else {

@@ -241,11 +241,24 @@ import { LanyardComponent } from '../../../shared/components/lanyard/lanyard.com
                       <div>
                         <p style="margin:0; font-weight:700; color:#fca5a5; font-size:0.95rem">Event Cancelled by Organizer</p>
                         <p style="margin:4px 0 0; font-size:0.8rem; color:var(--text-secondary); line-height:1.4">
-                          This event has been cancelled by the organizer. A <strong>full refund</strong> for your booking has been initiated to your source account.
+                          This event has been cancelled by the organizer.
+                          @if (+selectedTicket.event_ticket_price! > 0 || +selectedTicket.event_vip_price! > 0) {
+                            A <strong>full refund</strong> for your booking has been initiated to your source account.
+                          }
                         </p>
                       </div>
                     </div>
                   }
+
+                  @if (+selectedTicket.event_ticket_price! === 0 && (!selectedTicket.event_vip_price || +selectedTicket.event_vip_price === 0)) {
+                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:20px; text-align:center;">
+                      <span style="font-size:2rem; display:block; margin-bottom:8px">🎟️</span>
+                      <h4 style="margin:0 0 8px; color:#e2e8f0; font-size:1.1rem">Free Ticket Cancelled</h4>
+                      <p style="margin:0; color:var(--text-muted); font-size:0.85rem">
+                        This free booking has been successfully cancelled. No refund processing is required.
+                      </p>
+                    </div>
+                  } @else {
 
                   <div class="refund-head">
                     <div>
@@ -290,6 +303,7 @@ import { LanyardComponent } from '../../../shared/components/lanyard/lanyard.com
                   <button class="btn btn-secondary refund-refresh-btn" (click)="refreshRefundStatus(selectedTicket)">
                     Refresh Refund Status
                   </button>
+                  }
                 </div>
               } @else if (selectedTicket.transfer_status === 'transferred') {
                 <div class="qr-wrapper" style="padding: 12px; position: relative;">

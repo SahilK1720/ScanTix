@@ -46,7 +46,11 @@ import { ShinyTextComponent } from '../../../shared/components/shiny-text/shiny-
                 two slots (CSS transition handles the glide) and freeze/fade
                 the wrapping slot so it pops in cleanly without sliding across.
               -->
-              <div class="carousel-stage">
+              <div class="carousel-stage"
+                (touchstart)="onCarouselTouchStart($event)"
+                (touchend)="onCarouselTouchEnd($event)"
+                (touchmove)="$event.preventDefault()"
+              >
                 @for (slot of carouselSlots; track slot.id) {
                   <div
                     [class]="getSlotClass(slot)"
@@ -839,6 +843,61 @@ import { ShinyTextComponent } from '../../../shared/components/shiny-text/shiny-
       opacity: 0 !important;
       transition: opacity 0.22s ease !important;
     }
+
+    /* ── Mobile Responsive ────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .page-container { padding: 12px; }
+      .glass-card { padding: 20px 16px !important; }
+      h1 { font-size: 1.4rem !important; }
+      .carousel-stage {
+        height: 220px;
+        perspective: 600px;
+      }
+      .carousel-center {
+        width: 80%;
+        height: 200px;
+      }
+      .carousel-left {
+        width: 80%;
+        height: 200px;
+        transform: translateX(-52%) scale(0.72) rotateY(22deg);
+      }
+      .carousel-left:hover {
+        transform: translateX(-26%) scale(0.88) rotateY(6deg);
+      }
+      .carousel-right {
+        width: 80%;
+        height: 200px;
+        transform: translateX(52%) scale(0.72) rotateY(-22deg);
+      }
+      .carousel-right:hover {
+        transform: translateX(26%) scale(0.88) rotateY(-6deg);
+      }
+      .static-banner { height: 200px; }
+      .detail-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px;
+      }
+      .detail-item { padding: 16px; }
+      .detail-label { font-size: 0.78rem; margin-left: 28px; }
+      .detail-value { font-size: 0.9rem; }
+      .detail-value-highlight { font-size: 0.85rem; }
+      .price-tag { padding: 12px 16px; }
+      .price-value { font-size: 1.4rem !important; }
+      .quantity-grid { grid-template-columns: repeat(3, 1fr) !important; }
+      [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+      .event-description { padding: 16px; }
+      .event-description p { font-size: 0.9rem; }
+    }
+
+    @media (max-width: 480px) {
+      .carousel-stage { height: 180px; }
+      .carousel-center { width: 88%; height: 160px; }
+      .carousel-left  { width: 88%; height: 160px; }
+      .carousel-right { width: 88%; height: 160px; }
+      .static-banner { height: 160px; }
+      h1 { font-size: 1.2rem !important; }
+    }
 `]
 })
 export class EventDetailComponent implements OnInit, OnDestroy {
@@ -959,6 +1018,24 @@ export class EventDetailComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() { }
+
+  // ── Mobile swipe for carousel ─────────────────────────────────────────────
+  private swipeTouchStartX = 0;
+
+  onCarouselTouchStart(e: TouchEvent): void {
+    this.swipeTouchStartX = e.touches[0].clientX;
+  }
+
+  onCarouselTouchEnd(e: TouchEvent): void {
+    const dx = e.changedTouches[0].clientX - this.swipeTouchStartX;
+    const threshold = 40; // min px drag to trigger a swipe
+    if (Math.abs(dx) < threshold) return;
+    if (dx > 0) {
+      this.rotateRight(); // swipe right → go to previous
+    } else {
+      this.rotateLeft();  // swipe left  → go to next
+    }
+  }
 
   // ── Carousel helpers ──────────────────────────────────────────────────────
 

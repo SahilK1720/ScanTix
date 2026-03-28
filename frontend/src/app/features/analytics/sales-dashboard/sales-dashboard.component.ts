@@ -122,7 +122,7 @@ import { StaffManagementComponent } from '../../staff/staff-management/staff-man
 
         <!-- Staff Management -->
         <h2 style="margin-top:40px;margin-bottom:0">🧑‍💼 <span class="gradient-text">Manage Staff</span></h2>
-        <app-staff-management [eventId]="eventId" />
+        <app-staff-management [eventId]="eventId" [eventStatus]="stats.status" />
       }
     </div>
   `,
